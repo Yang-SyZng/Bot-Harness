@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from src.ver import version
+from src import __version__ as version
 
 from khl import Message
 
