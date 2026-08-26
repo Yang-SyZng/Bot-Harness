@@ -1,7 +1,8 @@
 import json
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
-from src.agent.schema import Artifact
+from src.core.entities import Artifact
 
 
 class ArtifactStore:
@@ -69,7 +70,7 @@ class ArtifactStore:
         temporary = self._manifest.with_suffix(".tmp")
         temporary.write_text(
             json.dumps(
-                [item.model_dump(mode="json") for item in self._artifacts],
+                [_artifact_to_json(item) for item in self._artifacts],
                 ensure_ascii=False,
                 indent=2,
             ),
@@ -85,3 +86,29 @@ class ArtifactStore:
             A copy of the registered artifact list.
         """
         return list(self._artifacts)
+
+
+def _artifact_to_json(artifact: Artifact) -> dict:
+    """Serialize a dataclass artifact into a JSON-ready dict.
+
+    Replaces the former pydantic ``model_dump(mode="json")`` so the manifest can
+    be written after the schema moved to plain dataclasses in Core. Bare
+    ``dataclasses.asdict`` is insufficient because it leaves ``Path`` values
+    un-encodable by ``json.dumps``.
+    """
+    payload: dict = asdict(artifact)
+
+    def _convert(value: object) -> object:
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return {k: _convert(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_convert(v) for v in value]
+        if is_dataclass(value) and not isinstance(value, type):
+            return _convert(asdict(value))
+        if hasattr(value, "value"):
+            return value.value
+        return value
+
+    return _convert(payload)
