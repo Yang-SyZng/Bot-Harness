@@ -1,4 +1,4 @@
-__version__ = "0.0.1_alpha.3"
+__version__ = "0.0.1_alpha.6"
 
 from pathlib import Path
 from pydantic import AnyHttpUrl, Field, SecretStr
@@ -24,6 +24,13 @@ class AppSettings(BaseSettings):
     max_attachment_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     max_artifact_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
 
+    # MySQL
+    sql_host: str = Field(default="localhost")
+    sql_port: int = Field(default=3306)
+    sql_user: str = Field(default="root")
+    sql_passwd: str = Field(default="")
+    sql_database: str = Field(default="")
+
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
@@ -35,3 +42,8 @@ class AppSettings(BaseSettings):
         """Configure application logging using the resolved workspace root."""
         configure_logging(self.workspace_root)
 
+global_settings = AppSettings()
+
+__all__ = [
+    "global_settings"
+]
