@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from khl import Bot, Message, MessageTypes
 
-from src.adapters.kook.schema import Attachment, IncomingMessage
+from src.core.entities import Attachment, IncomingMessage
 
 
 class KookNormalizer:
@@ -90,12 +90,18 @@ class KookNormalizer:
         if timestamp:
             received_at = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
 
+        dimensions: dict[str, str] = {}
+        server_id = getattr(guild, "id", None)
+        if server_id is not None:
+            dimensions["server_id"] = server_id
+        dimensions["channel_id"] = msg.channel.id
+
         return IncomingMessage(
             message_id=msg.id,
-            server_id=getattr(guild, "id", None),
-            channel_id=msg.channel.id,
             user_id=msg.author_id,
             text=text or None,
             attachments=attachments,
             received_at=received_at,
+            platform="kook",
+            dimensions=dimensions,
         )

@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 
 from src.agent.file_tools import TaskFileTools
 from src import AppSettings
-from src.agent.schema import AgentResult
+from src.core.contracts.agent import AgentResult
 
 
 class AgentService:

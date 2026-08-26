@@ -4,7 +4,7 @@ import logging
 from khl import Message, MessageTypes
 
 from src.i18n import Language, kook_message
-from src.agent.schema import AgentResult
+from src.core.contracts.agent import AgentResult
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from src import __version__ as version
 
 from khl import Message
 
-from src.agent.schema import AgentRequest, AgentResult
+from src.core.contracts.agent import AgentRequest, AgentResult
 from src.runtime.workspace import task_workspace
 from src.adapters.kook.normalizer import KookNormalizer
 from src.adapters.kook.renderer import KookRenderer
@@ -90,7 +90,7 @@ class KookIngress:
                 result = await self._bridge.run(AgentRequest(
                     request_id=incoming.message_id,
                     user_id=incoming.user_id,
-                    channel_id=incoming.channel_id,
+                    channel_id=incoming.get("channel_id") or "",
                     text=incoming.text,
                     file_path=file_path,
                     workspace=workspace,

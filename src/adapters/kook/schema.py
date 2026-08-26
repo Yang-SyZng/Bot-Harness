@@ -1,29 +1,20 @@
-from datetime import datetime, timezone
-from typing import Literal
+"""Re-export shim for KOOK adapter schema types.
 
-from pydantic import BaseModel, Field
+The canonical definitions now live in Core (``src.core.entities``). This module
+is kept so existing imports such as
+``from src.adapters.kook.schema import Attachment, IncomingMessage`` keep
+working during the migration. New code should import from ``src.core``.
+"""
 
+from src.core.contracts.agent import AgentRequest, AgentResult
+from src.core.entities.artifact import Artifact
+from src.core.entities.attachment import Attachment
+from src.core.entities.message import IncomingMessage
 
-class Attachment(BaseModel):
-    """Describe a file or media attachment received from KOOK."""
-
-    url: str
-    name: str | None = None
-    mime_type: str | None = None
-    kind: Literal["image", "file", "audio", "video"]
-
-
-class IncomingMessage(BaseModel):
-    """Represent a normalized message received from KOOK."""
-
-    schema_ver: str = "v1"
-
-    message_id: str
-    server_id: str | None = None
-    channel_id: str
-    user_id: str
-    text: str | None = None
-    attachments: list[Attachment] = Field(default_factory=list)
-    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-__all__ = ["AgentRequest", "AgentResult", "Artifact", "Attachment", "IncomingMessage"]
+__all__ = [
+    "AgentRequest",
+    "AgentResult",
+    "Artifact",
+    "Attachment",
+    "IncomingMessage",
+]
