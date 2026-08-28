@@ -1,0 +1,55 @@
+"""Fake in-memory Unit of Work.
+
+Provides a no-setup ``UnitOfWork`` whose four repositories share a single
+``MemoryStore``. The Application code paths that manage users / conversations /
+tasks / messages can therefore run and be tested without any external service.
+"""
+
+from __future__ import annotations
+
+from src.core.contracts.repositories import UnitOfWork
+from src.plugins.persistence.fake.repositories import (
+    FakeConversationRepository,
+    FakeMessageRepository,
+    FakeTaskRepository,
+    FakeUserRepository,
+    MemoryStore,
+)
+
+__all__ = ["FakeUnitOfWork"]
+
+
+class FakeUnitOfWork(UnitOfWork):
+    """An in-memory Unit of Work backed by a shared ``MemoryStore``."""
+
+    def __init__(self, store: MemoryStore | None = None) -> None:
+        """Initialize the unit of work with an optional shared store.
+
+        Args:
+            store: Shared backing store; a fresh one is created when omitted.
+        """
+        super().__init__()
+        self.store = store or MemoryStore()
+
+    async def __aenter__(self) -> "FakeUnitOfWork":
+        self.users = FakeUserRepository(self.store)
+        self.conversations = FakeConversationRepository(self.store)
+        self.tasks = FakeTaskRepository(self.store)
+        self.messages = FakeMessageRepository(self.store)
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await super().__aexit__(*args)
+        # Drop bindings so state is not reused across transactions.
+        self.users = None
+        self.conversations = None
+        self.tasks = None
+        self.messages = None
+
+    async def commit(self) -> None:
+        """For in-memory storage writes are immediately visible; commit is a
+        boundary marker and therefore a no-op."""
+
+    async def rollback(self) -> None:
+        """In-memory writes are not staged, so rollback is a no-op. This
+        satisfies the UnitOfWork seam while keeping the fake simple."""

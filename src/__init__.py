@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 class AppSettings(BaseSettings):
     """Define environment-backed configuration for the KOOK agent application."""
 
-    kook_token: SecretStr
+    platform_token: SecretStr
     api_key: SecretStr
     base_url: AnyHttpUrl
     llm_model_id: str = Field(min_length=1)

@@ -1,3 +1,12 @@
+"""Attachment downloader tool: fetch an attachment into the task workspace.
+
+This is a generic tool, decoupled from any concrete platform. It takes an
+``Attachment`` metadata object and streams its source URL into the task
+workspace, enforcing a maximum size.
+"""
+
+from __future__ import annotations
+
 import os
 import tempfile
 from pathlib import Path
@@ -7,20 +16,22 @@ import httpx
 
 from src.core.entities import Attachment
 
+__all__ = ["AttachmentDownloader", "AttachmentError"]
+
 
 class AttachmentError(ValueError):
     """Represent an error raised while validating or downloading an attachment."""
 
-    pass
-
 
 class AttachmentDownloader:
+    """Download an attachment's source into a task workspace."""
+
     def __init__(self, client: httpx.AsyncClient | None = None, max_bytes: int = 10 * 1024 * 1024):
         """Initialize the attachment downloader.
 
         Args:
-            client: Optional HTTP client to reuse for download requests. If omitted,
-                a temporary client is created for each download.
+            client: Optional HTTP client to reuse for download requests. If
+                omitted, a temporary client is created for each download.
             max_bytes: Maximum allowed attachment size in bytes.
         """
         self._client = client
@@ -30,15 +41,16 @@ class AttachmentDownloader:
         """Download a single attachment into the task workspace.
 
         Args:
-            attachment: Attachment metadata containing the source URL and filename.
+            attachment: Attachment metadata containing the source URL and
+                filename.
             workspace: Task workspace where the attachment is stored.
 
         Returns:
             The resolved path of the downloaded attachment.
 
         Raises:
-            AttachmentError: If the URL scheme or destination path is invalid, or
-                if the attachment exceeds the configured size limit.
+            AttachmentError: If the URL scheme or destination path is invalid,
+                or if the attachment exceeds the configured size limit.
             httpx.HTTPStatusError: If the server returns an unsuccessful HTTP
                 response.
         """

@@ -99,14 +99,16 @@ class MessageRepository(Repository, Protocol):
 class UnitOfWork:
     """Bundle the repositories of one transaction boundary.
 
-    Concrete implementations (e.g. :class:`MySQLUnitOfWork`) subclass this and
-    provide async context-manager semantics plus ``commit``/``rollback``.
+    Concrete implementations (e.g. :class:`MySQLUnitOfWork`) provide the real
+    repositories at transaction start (``__aenter__``) and expose ``commit`` /
+    ``rollback``. The repository attributes are ``None`` until a concrete
+    implementation binds them.
     """
 
-    users: UserRepository
-    conversations: ConversationRepository
-    tasks: TaskRepository
-    messages: MessageRepository
+    users: UserRepository | None = None
+    conversations: ConversationRepository | None = None
+    tasks: TaskRepository | None = None
+    messages: MessageRepository | None = None
 
     async def __aenter__(self) -> "UnitOfWork":
         return self

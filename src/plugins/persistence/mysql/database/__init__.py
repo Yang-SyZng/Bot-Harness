@@ -1,12 +1,19 @@
-from src.database.base import Base
-from src.database.checks import SchemaIssue, SchemaReport, verify_schema
-from src.database.engine import (
+from src.plugins.persistence.mysql.database.base import Base
+from src.plugins.persistence.mysql.database.checks import (
+    SchemaIssue,
+    SchemaReport,
+    verify_schema,
+)
+from src.plugins.persistence.mysql.database.engine import (
     Database,
     build_database_url,
     create_engine_from_settings,
     create_sync_engine_from_settings,
 )
-from src.database.locks import LockNotAcquired, mysql_named_lock
+from src.plugins.persistence.mysql.database.locks import (
+    LockNotAcquired,
+    mysql_named_lock,
+)
 
 __all__ = [
     "Base",
