@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
+from src.core.entities.session import Session
 from src.core.entities.transport.actor import ActorRef
+from src.core.entities.transport.asset import Asset
 from src.core.entities.transport.address import ConversationAddress
 from src.core.entities.transport.attachments import Attachment
 from src.core.entities.transport.connector import Connector
@@ -22,6 +24,7 @@ from src.core.entities.transport.transport import TransportRef
 
 __all__ = [
     "Attachment",
+    "Asset",
     "Message",
     "Connector",
     "TransportRef",
@@ -29,4 +32,5 @@ __all__ = [
     "MessageEnvelope",
     "ConversationAddress",
     "Conversation",
+    "Session",
 ]
