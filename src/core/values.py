@@ -62,11 +62,12 @@ class MessageEnvelopeTransportFlowType(StrEnum):
 
 
 class TaskStatus(StrEnum):
-    """Lifecycle states of a task."""
+    """Lifecycle states of a task (also used as session state)."""
 
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     WAITING_USER = "WAITING_USER"
+    PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
