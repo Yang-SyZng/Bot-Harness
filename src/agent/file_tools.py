@@ -1,7 +1,7 @@
 import mimetypes
 from pathlib import Path
 
-from src.artifacts.store import ArtifactStore
+from src.agent.asset_store import AssetStore
 
 
 ALLOWED_TEXT_SUFFIXES = {".txt", ".md", ".json", ".csv"}
@@ -31,7 +31,7 @@ class TaskFileTools:
         self.workspace = workspace.resolve()
         self.file_path = file_path.resolve() if file_path else None
         self.max_artifact_bytes = max_artifact_bytes
-        self.store = ArtifactStore(self.workspace, max_artifact_bytes)
+        self.store = AssetStore(self.workspace, max_artifact_bytes)
 
         if self.file_path is not None:
             input_dir = self.workspace / "input"
