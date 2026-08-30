@@ -1,6 +1,6 @@
 # Bot Harness
 
-![version](https://img.shields.io/badge/version-0.0.1__alpha.5-blue)
+![version](https://img.shields.io/badge/version-0.0.1__alpha.9-blue)
 ![GitHub last commit](https://img.shields.io/github/last-commit/Yang-SyZng/Bot-Harness?logo=github)
 ![github stars](https://img.shields.io/github/stars/Yang-SyZng/Bot-Harness?style=social)
 
