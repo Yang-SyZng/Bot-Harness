@@ -1,18 +1,19 @@
 """Fake in-memory Unit of Work.
 
-Provides a no-setup ``UnitOfWork`` whose four repositories share a single
-``MemoryStore``. The Application code paths that manage users / conversations /
-tasks / messages can therefore run and be tested without any external service.
+Provides a no-setup ``UnitOfWork`` whose four repositories (conversations /
+messages / sessions / assets) share a single ``MemoryStore``, so Application
+code paths can run and be tested without any external service.
 """
 
 from __future__ import annotations
 
 from src.core.contracts.repositories import UnitOfWork
 from src.plugins.persistence.fake.repositories import (
+    FakeAssetRepository,
     FakeConversationRepository,
+    FakeEnvelopeRepository,
     FakeMessageRepository,
-    FakeTaskRepository,
-    FakeUserRepository,
+    FakeSessionRepository,
     MemoryStore,
 )
 
@@ -32,19 +33,21 @@ class FakeUnitOfWork(UnitOfWork):
         self.store = store or MemoryStore()
 
     async def __aenter__(self) -> "FakeUnitOfWork":
-        self.users = FakeUserRepository(self.store)
         self.conversations = FakeConversationRepository(self.store)
-        self.tasks = FakeTaskRepository(self.store)
+        self.envelopes = FakeEnvelopeRepository(self.store)
         self.messages = FakeMessageRepository(self.store)
+        self.sessions = FakeSessionRepository(self.store)
+        self.assets = FakeAssetRepository(self.store)
         return self
 
     async def __aexit__(self, *args: object) -> None:
         await super().__aexit__(*args)
         # Drop bindings so state is not reused across transactions.
-        self.users = None
         self.conversations = None
-        self.tasks = None
+        self.envelopes = None
         self.messages = None
+        self.sessions = None
+        self.assets = None
 
     async def commit(self) -> None:
         """For in-memory storage writes are immediately visible; commit is a

@@ -6,19 +6,21 @@ external service). Multiple fake repositories can share one backing store.
 """
 
 from src.plugins.persistence.fake.repositories import (
+    FakeAssetRepository,
     FakeConversationRepository,
+    FakeEnvelopeRepository,
     FakeMessageRepository,
-    FakeTaskRepository,
-    FakeUserRepository,
+    FakeSessionRepository,
     MemoryStore,
 )
 from src.plugins.persistence.fake.unit_of_work import FakeUnitOfWork
 
 __all__ = [
     "MemoryStore",
-    "FakeUserRepository",
     "FakeConversationRepository",
-    "FakeTaskRepository",
+    "FakeEnvelopeRepository",
     "FakeMessageRepository",
+    "FakeSessionRepository",
+    "FakeAssetRepository",
     "FakeUnitOfWork",
 ]
