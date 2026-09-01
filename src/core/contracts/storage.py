@@ -5,26 +5,26 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from src.core.entities.artifact import Artifact
+from src.core.entities.transport.asset import Asset
 
 __all__ = ["ArtifactStorage", "WorkspaceProvider"]
 
 
 @runtime_checkable
 class ArtifactStorage(Protocol):
-    """Port for saving, reading and deleting generated artifact files."""
+    """Port for saving, reading and deleting generated asset files."""
 
     async def save(
         self,
-        artifact: Artifact,
+        asset: Asset,
         content: bytes,
-    ) -> Artifact:
+    ) -> Asset:
         ...  # pragma: no cover - protocol
 
-    async def read(self, artifact: Artifact) -> bytes:
+    async def read(self, asset: Asset) -> bytes:
         ...  # pragma: no cover - protocol
 
-    async def delete(self, artifact: Artifact) -> None:
+    async def delete(self, asset: Asset) -> None:
         ...  # pragma: no cover - protocol
 
 
