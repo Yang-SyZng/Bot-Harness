@@ -19,12 +19,13 @@ from src.core.contracts.messaging import (
 )
 from src.core.contracts.queue import TaskQueue
 from src.core.contracts.repositories import (
+    AssetRepository,
     ConversationRepository,
+    EnvelopeRepository,
     MessageRepository,
     Repository,
-    TaskRepository,
+    SessionRepository,
     UnitOfWork,
-    UserRepository,
 )
 from src.core.contracts.storage import ArtifactStorage, WorkspaceProvider
 
@@ -39,11 +40,12 @@ __all__ = [
     "ResultPublisher",
     "TaskQueue",
     "ConversationRepository",
+    "EnvelopeRepository",
     "MessageRepository",
     "Repository",
-    "TaskRepository",
+    "SessionRepository",
+    "AssetRepository",
     "UnitOfWork",
-    "UserRepository",
     "ArtifactStorage",
     "WorkspaceProvider",
 ]

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from src.core.entities.artifact import Artifact
+from src.core.entities.transport.asset import Asset
 
 __all__ = ["ReplyDestination", "PublishedResult", "ResultPublisher"]
 
@@ -32,7 +32,7 @@ class PublishedResult:
     """The unified result a publisher turns into a platform message."""
 
     text: str | None = None
-    artifacts: list[Artifact] = field(default_factory=list)
+    artifacts: list[Asset] = field(default_factory=list)
     done: bool = True
 
 

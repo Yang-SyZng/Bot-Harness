@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from src.core.entities.artifact import Artifact
-from src.core.entities.message import ChatMessage
+from src.core.entities.transport.asset import Asset
+from src.core.entities.message import Message
 from src.core.errors import DomainError
 from src.core.values import TaskStatus
 
@@ -23,7 +23,7 @@ __all__ = [
     "AgentRequest",
     "AgentResult",
     "AgentError",
-    "Artifact",
+    "Asset",
 ]
 
 
@@ -38,7 +38,7 @@ class AgentExecutionContext:
     task_id: str
     conversation_id: str
     user_message: str
-    recent_messages: list[ChatMessage] = field(default_factory=list)
+    recent_messages: list[Message] = field(default_factory=list)
     task_summary: str | None = None
     attachments: list = field(default_factory=list)
     workspace: Path | None = None
@@ -58,7 +58,7 @@ class AgentExecutionResult:
     """Outcome of one agent execution."""
 
     text: str | None = None
-    artifacts: list[Artifact] = field(default_factory=list)
+    artifacts: list[Asset] = field(default_factory=list)
     status: TaskStatus = TaskStatus.COMPLETED
     usage: object | None = None
     error: AgentError | None = None
@@ -104,6 +104,6 @@ class AgentResult:
     """Final state and outputs of an agent execution (legacy shape). We will remove this objects in the future."""
 
     text: str | None = None
-    artifacts: list[Artifact] = field(default_factory=list)
+    artifacts: list[Asset] = field(default_factory=list)
     status: TaskStatus | str = TaskStatus.COMPLETED
     error: str | None = None
