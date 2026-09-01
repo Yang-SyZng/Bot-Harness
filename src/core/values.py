@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from enum import StrEnum
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "BotPlatform",
     "ConversationType",
     "now_ms",
+    "new_id",
 ]
 
 
@@ -81,4 +83,14 @@ def now_ms() -> int:
     values are sortable and comparable without parsing.
     """
     return int(time.time() * 1000)
+
+
+def new_id() -> str:
+    """Return a new random, stable string id (UUID hex, no dashes).
+
+    Core entities use this as their ``id`` default so every instance has a
+    stable identity at creation time (referenced by envelope_ids, task_ids,
+    parent_session_id, ...) instead of waiting for DB-assigned ids.
+    """
+    return uuid.uuid4().hex
 
