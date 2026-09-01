@@ -58,7 +58,7 @@ class SessionRouter:
             user_id=user_id,
             status=TaskStatus.QUEUED,
             goal=goal,
-            message_ids=[],
+            envelope_ids=[],
             task_ids=[],
             created_at=ts,
             updated_at=ts,
