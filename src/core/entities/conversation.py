@@ -5,14 +5,14 @@ from typing import List
 
 from src.core.entities.transport.address import ConversationAddress
 from src.core.entities.transport.envelope import MessageEnvelope
-from src.core.values import ConversationType
+from src.core.values import ConversationType, new_id
 
 __all__ = ["Conversation"]
 
 
 @dataclass
 class Conversation:
-    id: str | None = field(default=None)
+    id: str = field(default_factory=new_id)
     conversation_type: ConversationType | None = field(default=None)
     address: ConversationAddress | None = field(default=None)
     parent_id: str | None = field(default=None)
