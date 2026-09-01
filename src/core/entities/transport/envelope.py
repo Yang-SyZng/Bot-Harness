@@ -9,6 +9,7 @@ from src.core.entities.transport.transport import TransportRef
 from src.core.values import (
     MessageEnvelopeDirectionType,
     MessageEnvelopeTransportFlowType,
+    new_id,
 )
 
 __all__ = ["MessageEnvelope"]
@@ -18,9 +19,9 @@ __all__ = ["MessageEnvelope"]
 class MessageEnvelope:
     version: str = "v0.1"
 
-    id: str | None = field(default=None)
+    id: str = field(default_factory=new_id)
     conversation_id: str | None = field(default=None)
-    messages: List[Message] | None = field(default=None)
+    messages: Message | None = field(default=None)
     sender: ActorRef | None = field(default=None)
     recipient: ActorRef | None = field(default=None)
 

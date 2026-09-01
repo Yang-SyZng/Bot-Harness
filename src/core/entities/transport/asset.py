@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.core.values import now_ms
+from src.core.values import now_ms, new_id
 
 __all__ = ["Asset"]
 
@@ -40,7 +40,7 @@ class Asset:
     """
 
     # ── identity / ownership ──
-    id: str | None = field(default=None)
+    id: str = field(default_factory=new_id)
 
     # ── storage metadata ──
     original_name: str | None = field(default=None)

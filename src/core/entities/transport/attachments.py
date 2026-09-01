@@ -19,7 +19,7 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.core.values import AttachmentKind
+from src.core.values import AttachmentKind, new_id
 
 __all__ = ["Attachment"]
 
@@ -35,7 +35,7 @@ class Attachment:
     """
 
     # ── filled on ingress (metadata only, no local content yet) ──
-    id: str | None = field(default=None)
+    id: str = field(default_factory=new_id)
     f_type: AttachmentKind | None = None
     name: str | None = None
     mime_type: str | None = None
