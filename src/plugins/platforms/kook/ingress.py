@@ -1,54 +1,49 @@
 import logging
+from collections.abc import Awaitable, Callable
 
 from khl import Message
 
+from src.core.entities.transport.envelope import MessageEnvelope
 from src.plugins.platforms.kook.normalizer import KookNormalizer
-from src.plugins.platforms.kook.renderer import KookRenderer
-from src.application.handle_incoming_message import HandleIncomingMessage
 
 log = logging.getLogger(__name__)
 
+__all__ = ["KookIngress"]
+
+# An inbound handler consumes a normalized ``MessageEnvelope``.
+EnvelopeHandler = Callable[[MessageEnvelope], Awaitable[None]]
+
 
 class KookIngress:
-    """KOOK adapter: convert input and render results — nothing else.
+    """KOOK adapter: convert input and dispatch the normalized envelope.
 
-    This thin adapter only wires the incoming KOOK message into the application
-    ``HandleIncomingMessage`` use case and hands the resulting outcome to the
-    renderer. All orchestration, routing, dedup, workspace and agent execution
-    live in the application layer.
+    This thin adapter only normalizes an incoming KOOK message into a core
+    ``MessageEnvelope`` and hands it to the inbound handler. All orchestration
+    (routing, session, context, execution) lives in the application layer.
     """
 
     def __init__(
         self,
         *,
         normalizer: KookNormalizer,
-        handle_message: HandleIncomingMessage,
-        renderer: KookRenderer,
+        handler: EnvelopeHandler,
     ) -> None:
         """Initialize the KOOK message ingress handler.
 
         Args:
-            normalizer: Normalizer used to convert KOOK messages into internal
-                message models.
-            handle_message: Application use case that processes incoming messages.
-            renderer: Renderer used to send the outcome back to KOOK.
+            normalizer: Normalizer converting KOOK messages to ``MessageEnvelope``.
+            handler: Application handler that consumes a normalized envelope.
         """
         self._normalizer = normalizer
-        self._handle_message = handle_message
-        self._renderer = renderer
+        self._handler = handler
 
     async def handle(self, msg: Message) -> None:
-        """Process an incoming KOOK message and render the outcome.
+        """Normalize ``msg`` and dispatch the envelope to the handler.
 
         Args:
             msg: Incoming KOOK message.
-
-        Returns:
-            None.
         """
-        incoming = await self._normalizer.normalize(msg)
-        if incoming is None:
+        envelope = await self._normalizer.normalize(msg)
+        if envelope is None:
             return
-
-        outcome = await self._handle_message.execute(incoming)
-        await self._renderer.render(msg, outcome)
+        await self._handler(envelope)
