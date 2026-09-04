@@ -308,7 +308,10 @@ async def query_model_pricing(
     except OSError as exc:
         log.warning("could not refresh model pricing data, falling back to local data: %s", exc)
 
-    data = await asyncio.to_thread(load_model_pricing, data_path)
+    # The bundled pricing file is small enough to load in a few milliseconds.
+    # Keeping this local read synchronous avoids creating a worker thread for
+    # every lookup and makes shutdown deterministic in short-lived callers.
+    data = load_model_pricing(data_path)
     matches = find_model_price_keys(data, model_id)
 
     if verbose:
