@@ -3,13 +3,14 @@ from pathlib import Path
 from agents import Agent, ModelSettings, OpenAIChatCompletionsModel, Runner, function_tool
 from openai import AsyncOpenAI
 
-from src.agent.file_tools import TaskFileTools
+from src.agent.file_tools import SessionFileTools
 from src import AppSettings
-from src.core.contracts.agent import AgentResult
+from src.core.contracts.agent import AgentExecutionResult
+from src.core.values import AgentRunStatus
 
 
 class AgentService:
-    """Configure and run the agent with task-specific file tools."""
+    """Configure and run the agent with session-scoped file tools."""
 
     def __init__(
         self,
@@ -63,11 +64,11 @@ class AgentService:
         user_input: str,
         file_path: Path | None = None,
         workspace: Path | None = None,
-    ) -> AgentResult:
+    ) -> AgentExecutionResult:
         """Run the agent and return its response and generated artifacts.
 
         Args:
-            user_input: Task content provided by the user.
+            user_input: Session input provided by the user.
             file_path: Path to the user-uploaded file, or ``None`` if no file was
                 uploaded.
             workspace: Working directory used to read input files and store
@@ -78,11 +79,11 @@ class AgentService:
             completion status.
 
         Raises:
-            ValueError: If an input file is provided without a task workspace.
+            ValueError: If an input file is provided without a session workspace.
         """
         tools = []
         file_tools = (
-            TaskFileTools(workspace, file_path, self._max_artifact_bytes)
+            SessionFileTools(workspace, file_path, self._max_artifact_bytes)
             if workspace else None
         )
         store = file_tools.store if file_tools else None
@@ -90,7 +91,7 @@ class AgentService:
         if file_path is not None:
             if workspace is None:
                 raise ValueError(
-                    "A task workspace is required when an input file is provided."
+                    "A session workspace is required when an input file is provided."
                 )
 
             @function_tool
@@ -107,7 +108,7 @@ class AgentService:
         if store is not None:
             @function_tool
             def write_artifact(name: str, content: str) -> str:
-                """Create and register a text artifact for the current task.
+                """Create and register a text artifact for the current session.
 
                 Args:
                     name: Safe filename with a .txt, .md, .json, or .csv extension.
@@ -122,8 +123,8 @@ class AgentService:
 
         run_agent = self._agent.clone(tools=tools)
         result = await self._runner.run(run_agent, user_input)
-        return AgentResult(
+        return AgentExecutionResult(
             text=str(result.final_output) if result.final_output is not None else None,
             artifacts=store.list() if store else [],
-            status="completed",
+            status=AgentRunStatus.SUCCEEDED,
         )

@@ -1,7 +1,7 @@
-"""Attachment downloader tool: fetch an attachment into the task workspace.
+"""Attachment downloader tool: fetch an attachment into a session workspace.
 
 This is a generic tool, decoupled from any concrete platform. It takes an
-``Attachment`` metadata object and streams its source URL into the task
+``Attachment`` metadata object and streams its source URL into the session
 workspace, enforcing a maximum size.
 """
 
@@ -24,7 +24,7 @@ class AttachmentError(ValueError):
 
 
 class AttachmentDownloader:
-    """Download an attachment's source into a task workspace."""
+    """Download an attachment's source into a session workspace."""
 
     def __init__(self, client: httpx.AsyncClient | None = None, max_bytes: int = 10 * 1024 * 1024):
         """Initialize the attachment downloader.
@@ -38,12 +38,12 @@ class AttachmentDownloader:
         self._max_bytes = max_bytes
 
     async def download_one(self, attachment: Attachment, workspace: Path) -> Path:
-        """Download a single attachment into the task workspace.
+        """Download a single attachment into the session workspace.
 
         Args:
             attachment: Attachment metadata containing the source URL and
                 filename.
-            workspace: Task workspace where the attachment is stored.
+            workspace: Session workspace where the attachment is stored.
 
         Returns:
             The resolved path of the downloaded attachment.

@@ -1,4 +1,4 @@
-"""AssetStore: register and track generated assets in a task workspace.
+"""AssetStore: register and track generated assets in a session workspace.
 
 Moved into the agent module (replacing the former standalone ``src/artifacts``
 package, which was a single artifact-only file). It now registers unified
@@ -18,7 +18,7 @@ __all__ = ["AssetStore"]
 
 
 class AssetStore:
-    """Register and track generated assets within a task workspace."""
+    """Register and track generated assets within a session workspace."""
 
     def __init__(
         self,
@@ -28,7 +28,7 @@ class AssetStore:
         """Initialize the asset store.
 
         Args:
-            workspace: Task workspace containing the output directory.
+            workspace: Session workspace containing the output directory.
             max_bytes: Maximum allowed size of each asset in bytes.
         """
         self._workspace = workspace.resolve()
@@ -65,7 +65,10 @@ class AssetStore:
         if not resolved.is_file():
             raise ValueError("The asset file does not exist.")
         if resolved.parent != self._output:
-            raise ValueError("The asset file must be placed in the 'output' directory of the current task.")
+            raise ValueError(
+                "The asset file must be placed in the current session's "
+                "'output' directory."
+            )
         safe_name = Path(name).name
         if safe_name != name or not safe_name:
             raise ValueError("Asset name is not safe")

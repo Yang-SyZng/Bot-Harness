@@ -7,8 +7,8 @@ from src.agent.asset_store import AssetStore
 ALLOWED_TEXT_SUFFIXES = {".txt", ".md", ".json", ".csv"}
 
 
-class TaskFileTools:
-    """Provide safe input-reading and artifact-writing tools for a task."""
+class SessionFileTools:
+    """Provide safe input-reading and artifact-writing tools for a session."""
 
     def __init__(
         self,
@@ -16,16 +16,16 @@ class TaskFileTools:
         file_path: Path | None = None,
         max_artifact_bytes: int = 10 * 1024 * 1024,
     ) -> None:
-        """Initialize file tools for a task workspace.
+        """Initialize file tools for a session workspace.
 
         Args:
-            workspace: Workspace containing the task input and output directories.
-            file_path: Optional path to the task's input file.
+            workspace: Workspace containing the session input/output directories.
+            file_path: Optional path to the session's input file.
             max_artifact_bytes: Maximum allowed size of a generated artifact in
                 bytes.
 
         Raises:
-            ValueError: If the input file is outside the task's input directory or
+            ValueError: If the input file is outside the session's input directory or
                 is not a regular file.
         """
         self.workspace = workspace.resolve()
@@ -36,23 +36,23 @@ class TaskFileTools:
         if self.file_path is not None:
             input_dir = self.workspace / "input"
             if self.file_path.parent != input_dir or not self.file_path.is_file():
-                raise ValueError("The input file does not belong to the current task.")
+                raise ValueError("The input file does not belong to the current session.")
 
     def read_input(self) -> str:
-        """Read the task's input file when it is a supported text format.
+        """Read the session's input file when it is a supported text format.
 
         Returns:
             The input text, truncated to 200,000 characters, or a user-facing
             message if no readable input file is available.
         """
         if self.file_path is None:
-            return "[Warnning] The current task has no input file."
+            return "[Warning] The current session has no input file."
         if self.file_path.suffix.lower() not in ALLOWED_TEXT_SUFFIXES:
             return f"[Error] Currently, The {self.file_path.suffix or 'Uknow'} format is not supported for reading."
         return self.file_path.read_text(encoding="utf-8")[:200_000]
 
     def write_artifact(self, name: str, content: str) -> str:
-        """Write and register a text artifact in the task workspace.
+        """Write and register a text artifact in the session workspace.
 
         Args:
             name: Safe filename with a supported text-file extension.
