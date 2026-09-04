@@ -9,7 +9,7 @@ from __future__ import annotations
 
 __all__ = [
     "DomainError",
-    "TaskNotFoundError",
+    "SessionNotFoundError",
 ]
 
 
@@ -17,5 +17,5 @@ class DomainError(Exception):
     """Base class for all Core / domain-level errors."""
 
 
-class TaskNotFoundError(DomainError):
-    """Raised when a task cannot be located by its identifier."""
+class SessionNotFoundError(DomainError):
+    """Raised when a session cannot be located by its identifier."""

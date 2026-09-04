@@ -11,41 +11,29 @@ from src.core.contracts.agent import (
     AgentExecutionContext,
     AgentExecutionResult,
 )
-from src.core.contracts.cache import MessageDedup, TransactionalTaskLock
-from src.core.contracts.messaging import (
-    PublishedResult,
-    ReplyDestination,
-    ResultPublisher,
-)
-from src.core.contracts.queue import TaskQueue
 from src.core.contracts.repositories import (
+    AgentRunRepository,
     AssetRepository,
     ConversationRepository,
     EnvelopeRepository,
     MessageRepository,
     Repository,
+    SessionEnvelopeRepository,
     SessionRepository,
     UnitOfWork,
 )
-from src.core.contracts.storage import ArtifactStorage, WorkspaceProvider
 
 __all__ = [
     "AgentBackend",
     "AgentExecutionContext",
     "AgentExecutionResult",
-    "MessageDedup",
-    "TransactionalTaskLock",
-    "PublishedResult",
-    "ReplyDestination",
-    "ResultPublisher",
-    "TaskQueue",
     "ConversationRepository",
+    "AgentRunRepository",
     "EnvelopeRepository",
     "MessageRepository",
     "Repository",
+    "SessionEnvelopeRepository",
     "SessionRepository",
     "AssetRepository",
     "UnitOfWork",
-    "ArtifactStorage",
-    "WorkspaceProvider",
 ]

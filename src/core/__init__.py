@@ -8,26 +8,32 @@ on Core — never the other way around.
 
 Package layout:
 
-- ``core.entities``: platform-agnostic domain objects (User, Conversation,
-  Task, Message, IncomingMessage, Artifact, ...).
+- ``core.entities``: platform-agnostic domain objects (Conversation, Session,
+  MessageEnvelope, Message, Asset, AgentRun, ...).
 - ``core.contracts``: Ports/Protocols the application depends on (AgentBackend,
-  TaskQueue, ResultPublisher, UnitOfWork, Repositories).
-- ``core.values``: platform-independent value definitions (TaskStatus, ...).
+  UnitOfWork and repositories).
+- ``core.values``: platform-independent value definitions (SessionStatus, ...).
 - ``core.errors``: Core-level error types.
 """
 
 from src.core.errors import (
     DomainError,
-    TaskNotFoundError,
+    SessionNotFoundError,
 )
 from src.core.values import (
+    AgentRunStatus,
     AttachmentKind,
-    TaskStatus,
+    MessageRole,
+    SessionEnvelopeRole,
+    SessionStatus,
 )
 
 __all__ = [
     "DomainError",
-    "TaskNotFoundError",
+    "SessionNotFoundError",
     "AttachmentKind",
-    "TaskStatus",
+    "MessageRole",
+    "SessionEnvelopeRole",
+    "SessionStatus",
+    "AgentRunStatus",
 ]

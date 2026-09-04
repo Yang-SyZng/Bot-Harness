@@ -14,14 +14,12 @@ from typing import Protocol, runtime_checkable
 from src.core.entities.transport.asset import Asset
 from src.core.entities.message import Message
 from src.core.errors import DomainError
-from src.core.values import TaskStatus
+from src.core.values import AgentRunStatus
 
 __all__ = [
     "AgentBackend",
     "AgentExecutionContext",
     "AgentExecutionResult",
-    "AgentRequest",
-    "AgentResult",
     "AgentError",
     "Asset",
 ]
@@ -35,11 +33,11 @@ class AgentExecutionContext:
     arguments.
     """
 
-    task_id: str
+    session_id: str
     conversation_id: str
     user_message: str
     recent_messages: list[Message] = field(default_factory=list)
-    task_summary: str | None = None
+    session_summary: str | None = None
     attachments: list = field(default_factory=list)
     workspace: Path | None = None
 
@@ -59,7 +57,7 @@ class AgentExecutionResult:
 
     text: str | None = None
     artifacts: list[Asset] = field(default_factory=list)
-    status: TaskStatus = TaskStatus.COMPLETED
+    status: AgentRunStatus = AgentRunStatus.SUCCEEDED
     usage: object | None = None
     error: AgentError | None = None
 
@@ -74,36 +72,3 @@ class AgentBackend(Protocol):
     ) -> AgentExecutionResult:
         """Execute the agent for ``context`` and return its result."""
         ...
-
-
-# ---------------------------------------------------------------------------
-# Legacy request/result objects migrated from the agent schema.
-#
-# These preserve the exact field set the current platform adapter / AgentService
-# use. They will be superseded by ``AgentExecutionContext`` /
-# ``AgentExecutionResult`` as the Application Use Cases land.
-#
-# We will remove these objects in the future.
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class AgentRequest:
-    """A normalized request submitted to the agent service (legacy shape). We will remove this objects in the future."""
-
-    request_id: str
-    user_id: str
-    channel_id: str
-    text: str | None = None
-    file_path: Path | None = None
-    workspace: Path | None = None
-
-
-@dataclass
-class AgentResult:
-    """Final state and outputs of an agent execution (legacy shape). We will remove this objects in the future."""
-
-    text: str | None = None
-    artifacts: list[Asset] = field(default_factory=list)
-    status: TaskStatus | str = TaskStatus.COMPLETED
-    error: str | None = None

@@ -12,3 +12,4 @@ class TransportRef:
     connector_id: Connector | None = field(default=None)
     external_event_id: str | None = field(default=None)
     external_message_id: str | None = field(default=None)
+    external_reply_to_message_id: str | None = field(default=None)

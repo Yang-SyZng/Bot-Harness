@@ -10,12 +10,15 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from src.core.entities.agent_run import AgentRun
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
+from src.core.entities.session_envelope import SessionEnvelope
 from src.core.entities.transport.address import ConversationAddress
 from src.core.entities.transport.asset import Asset
 from src.core.entities.transport.envelope import MessageEnvelope
+from src.core.values import SessionEnvelopeRole
 
 __all__ = [
     "Repository",
@@ -23,7 +26,9 @@ __all__ = [
     "EnvelopeRepository",
     "MessageRepository",
     "SessionRepository",
+    "SessionEnvelopeRepository",
     "AssetRepository",
+    "AgentRunRepository",
     "UnitOfWork",
 ]
 
@@ -61,6 +66,15 @@ class EnvelopeRepository(Repository, Protocol):
     async def get(self, envelope_id: str) -> MessageEnvelope | None:
         ...  # pragma: no cover - protocol
 
+    async def get_by_external_message_id(
+        self,
+        *,
+        conversation_id: str,
+        external_message_id: str,
+    ) -> MessageEnvelope | None:
+        """Resolve a platform reply target within one Conversation."""
+        ...
+
     async def list_by_conversation(
         self,
         conversation_id: str,
@@ -76,20 +90,14 @@ class EnvelopeRepository(Repository, Protocol):
 class MessageRepository(Repository, Protocol):
     """Persistence port for :class:`~src.core.entities.message.Message`.
 
-    Messages are read out of envelopes for a session; they are not queries by a
-    conversation id (ownership lives on the envelope / session relation).
+    This repository owns Message content only. Conversation and Session
+    membership are expressed by Envelope repositories.
     """
 
-    async def get(self, message_id: str) -> Message | None:
+    async def add(self, message: Message) -> None:
         ...  # pragma: no cover - protocol
 
-    async def list_for_envelopes(
-        self,
-        envelope_ids: list[str],
-        *,
-        limit: int | None = None,
-    ) -> list[Message]:
-        """Return the messages contained in the given envelopes, in order."""
+    async def get(self, message_id: str) -> Message | None:
         ...  # pragma: no cover - protocol
 
 
@@ -110,12 +118,50 @@ class SessionRepository(Repository, Protocol):
         self,
         *,
         conversation_id: str,
-        user_id: str | None = None,
+        owner_user_id: str | None = None,
     ) -> Session | None:
         """Return the currently active session for the conversation, if any."""
         ...
 
     async def list_by_conversation(self, conversation_id: str) -> list[Session]:
+        ...  # pragma: no cover - protocol
+
+
+@runtime_checkable
+class SessionEnvelopeRepository(Repository, Protocol):
+    """Persistence port for ordered Session-to-Envelope membership."""
+
+    async def attach(
+        self,
+        *,
+        session_id: str,
+        envelope_id: str,
+        relation_role: SessionEnvelopeRole = SessionEnvelopeRole.INPUT,
+    ) -> SessionEnvelope:
+        """Attach once and return the existing or newly-created relation."""
+        ...
+
+    async def list_by_session(self, session_id: str) -> list[SessionEnvelope]:
+        ...  # pragma: no cover - protocol
+
+    async def list_session_ids(self, envelope_id: str) -> list[str]:
+        ...  # pragma: no cover - protocol
+
+
+@runtime_checkable
+class AgentRunRepository(Repository, Protocol):
+    """Persistence port for concrete Agent execution attempts."""
+
+    async def add(self, run: AgentRun) -> None:
+        ...  # pragma: no cover - protocol
+
+    async def get(self, run_id: str) -> AgentRun | None:
+        ...  # pragma: no cover - protocol
+
+    async def save(self, run: AgentRun) -> None:
+        ...  # pragma: no cover - protocol
+
+    async def list_by_session(self, session_id: str) -> list[AgentRun]:
         ...  # pragma: no cover - protocol
 
 
@@ -149,6 +195,8 @@ class UnitOfWork:
     sessions: SessionRepository | None = None
     assets: AssetRepository | None = None
     envelopes: EnvelopeRepository | None = None
+    session_envelopes: SessionEnvelopeRepository | None = None
+    agent_runs: AgentRunRepository | None = None
 
     async def __aenter__(self) -> "UnitOfWork":
         return self

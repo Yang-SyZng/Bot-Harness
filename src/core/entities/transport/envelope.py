@@ -21,13 +21,15 @@ class MessageEnvelope:
 
     id: str = field(default_factory=new_id)
     conversation_id: str | None = field(default=None)
-    messages: Message | None = field(default=None)
+    message: Message | None = field(default=None)
     sender: ActorRef | None = field(default=None)
     recipient: ActorRef | None = field(default=None)
+    reply_to_envelope_id: str | None = field(default=None)
 
     transport: TransportRef | None = field(default=None)
     direction: MessageEnvelopeDirectionType | None = field(default=None)
     transport_flow: MessageEnvelopeTransportFlowType | None = field(default=None)
 
+    occurred_at: int | None = field(default=None)
     received_at: int | None = field(default=None)
     idempotency_key: str | None = field(default=None)

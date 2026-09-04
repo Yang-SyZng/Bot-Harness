@@ -11,7 +11,10 @@ __all__ = [
     "ActorRefType",
     "MessageEnvelopeDirectionType",
     "MessageEnvelopeTransportFlowType",
-    "TaskStatus",
+    "MessageRole",
+    "SessionStatus",
+    "AgentRunStatus",
+    "SessionEnvelopeRole",
     "BotPlatform",
     "ConversationType",
     "now_ms",
@@ -27,6 +30,7 @@ class BotPlatform(StrEnum):
     """
 
     UNKNOWN = "unknown"
+    KOOK = "kook"
 
 
 class ConversationType(StrEnum):
@@ -63,9 +67,18 @@ class MessageEnvelopeTransportFlowType(StrEnum):
     INTERNAL = "internal"
 
 
-class TaskStatus(StrEnum):
-    """Lifecycle states of a task (also used as session state)."""
+class MessageRole(StrEnum):
+    """The visible conversational role of a normalized message."""
 
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+
+class SessionStatus(StrEnum):
+    """Lifecycle states of a logical user session/task."""
+
+    CREATED = "CREATED"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     WAITING_USER = "WAITING_USER"
@@ -74,6 +87,26 @@ class TaskStatus(StrEnum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
     TIMED_OUT = "TIMED_OUT"
+
+
+class AgentRunStatus(StrEnum):
+    """Lifecycle states of one concrete agent execution attempt."""
+
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    TIMED_OUT = "TIMED_OUT"
+
+
+class SessionEnvelopeRole(StrEnum):
+    """Why an envelope is associated with a Session."""
+
+    INPUT = "input"
+    CONTEXT = "context"
+    OUTPUT = "output"
+    REFERENCE = "reference"
 
 
 def now_ms() -> int:
@@ -89,8 +122,7 @@ def new_id() -> str:
     """Return a new random, stable string id (UUID hex, no dashes).
 
     Core entities use this as their ``id`` default so every instance has a
-    stable identity at creation time (referenced by envelope_ids, task_ids,
+    stable identity at creation time (referenced by relation rows,
     parent_session_id, ...) instead of waiting for DB-assigned ids.
     """
     return uuid.uuid4().hex
-

@@ -11,9 +11,11 @@ Split by responsibility:
 
 from __future__ import annotations
 
+from src.core.entities.agent_run import AgentRun
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
+from src.core.entities.session_envelope import SessionEnvelope
 from src.core.entities.transport.actor import ActorRef
 from src.core.entities.transport.asset import Asset
 from src.core.entities.transport.address import ConversationAddress
@@ -24,6 +26,7 @@ from src.core.entities.transport.transport import TransportRef
 
 __all__ = [
     "Attachment",
+    "AgentRun",
     "Asset",
     "Message",
     "Connector",
@@ -33,4 +36,5 @@ __all__ = [
     "ConversationAddress",
     "Conversation",
     "Session",
+    "SessionEnvelope",
 ]
