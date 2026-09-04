@@ -1,218 +1,185 @@
-"""MySQL persistence plugin models.
-
-SQLAlchemy ORM models owned by the MySQL persistence plugin. They model the
-conversation graph:
-
-    User  ->  Conversation  ->  Task  ->  Message / TaskEvent / Artifact
-    User  ->  Memory
-
-They only rely on the plugin's declarative ``Base`` (the MySQL plugin database
-framework) so the shared infrastructure stays technology-neutral and free of any
-particular schema. The schema is versioned through Alembic; do not edit
-tables directly in DDL.
-"""
+"""SQLAlchemy models for the Conversation/Session persistence graph."""
 
 from __future__ import annotations
-
-from datetime import datetime
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
-    DateTime,
-    Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.plugins.persistence.mysql.database.base import Base
 
-
-class User(Base):
-    """A user that interacts with the bot (one row per unique external id)."""
-
-    __tablename__ = "users"
-    __table_args__ = (
-        UniqueConstraint("external_user_id", name="uq_users_external_id"),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    # Stable external user identifier, unique across the table.
-    external_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
+ID = String(32)
 
 
 class Conversation(Base):
-    """A long-lived conversation, addressed by a platform-neutral identity.
-
-    The addressing dimensions (server, channel, user, ...) are stored in the
-    open-ended ``dimensions`` JSON column, and ``identity_key`` is the
-    deterministic identity string used for uniqueness — mirroring the Core
-    ``ConversationIdentity`` so no concrete platform's fields are hard-coded.
-    """
-
     __tablename__ = "conversations"
     __table_args__ = (
-        UniqueConstraint("identity_key", name="uq_conversations_identity_key"),
+        UniqueConstraint("address_key", name="uq_conversations_address_key"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    # Deterministic normalized identity string (see ConversationIdentity.__str__).
-    identity_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    # Platform-neutral addressing dimensions as key/value object.
-    dimensions: Mapped[dict] = mapped_column(JSON, nullable=False)
-    # Currently active task for this conversation (soft reference, may be NULL).
-    # No DB-level FK because it points back to tasks and would create a
-    # circular dependency with tasks.conversation_id.
-    active_task_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    address_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    address_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    conversation_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(
+        ID, ForeignKey("conversations.id"), nullable=True
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-
-class Task(Base):
-    """A unit of work within a conversation, tied to an agent session."""
-
-    __tablename__ = "tasks"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    conversation_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("conversations.id"), nullable=False
-    )
-    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # QUEUED / RUNNING / WAITING_USER / COMPLETED / FAILED / CANCELLED / TIMED_OUT.
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="QUEUED")
-    agent_session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    previous_response_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    workspace_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    last_message_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class Message(Base):
-    """One message within a task; the row-append-only conversation history."""
-
     __tablename__ = "messages"
+
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachments_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+
+class MessageEnvelope(Base):
+    __tablename__ = "message_envelopes"
     __table_args__ = (
-        UniqueConstraint("external_message_id", name="uq_messages_external_id"),
+        UniqueConstraint(
+            "conversation_id",
+            "idempotency_key",
+            name="uq_envelopes_conversation_idempotency",
+        ),
+        UniqueConstraint(
+            "conversation_id",
+            "external_message_id",
+            name="uq_envelopes_conversation_external_message",
+        ),
+        Index("ix_envelopes_conversation_order", "conversation_id", "received_at", "id"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("tasks.id"), nullable=False
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    version: Mapped[str] = mapped_column(String(16), nullable=False, default="v0.1")
+    conversation_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("conversations.id"), nullable=False
     )
-    # Original external message id; unique constraint provides DB-level idempotency.
-    external_message_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    role: Mapped[str] = mapped_column(String(32), nullable=False)  # user / assistant
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    attachments_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+    message_id: Mapped[str | None] = mapped_column(
+        ID, ForeignKey("messages.id"), nullable=True, unique=True
+    )
+    sender_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    recipient_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    connector_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    external_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_reply_to_message_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    reply_to_envelope_id: Mapped[str | None] = mapped_column(
+        ID, ForeignKey("message_envelopes.id"), nullable=True
+    )
+    direction: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    transport_flow: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    occurred_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    received_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+    __table_args__ = (
+        Index(
+            "ix_sessions_active_owner",
+            "conversation_id",
+            "owner_user_id",
+            "status",
+        ),
     )
 
-
-class TaskEvent(Base):
-    """Audit log of state transitions and progress events for a task."""
-
-    __tablename__ = "task_events"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("tasks.id"), nullable=False
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("conversations.id"), nullable=False
     )
-    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+    owner_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    parent_session_id: Mapped[str | None] = mapped_column(
+        ID, ForeignKey("sessions.id"), nullable=True
+    )
+    covers_through_envelope_id: Mapped[str | None] = mapped_column(
+        ID, ForeignKey("message_envelopes.id"), nullable=True
+    )
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    version: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class SessionEnvelope(Base):
+    __tablename__ = "session_envelopes"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "sequence_no", name="uq_session_envelopes_sequence"
+        ),
+        Index("ix_session_envelopes_envelope", "envelope_id"),
     )
 
-
-class Artifact(Base):
-    """Metadata for a generated file; the payload stays in the task workspace."""
-
-    __tablename__ = "artifacts"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("tasks.id"), nullable=False
+    session_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("sessions.id"), primary_key=True
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    envelope_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("message_envelopes.id"), primary_key=True
+    )
+    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    relation_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+    __table_args__ = (Index("ix_assets_sha256", "sha256"),)
+
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    safe_to_share: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
-    )
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    safe_to_share: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
-class Memory(Base):
-    """A structured long-term memory record owned by a user."""
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint("session_id", "attempt", name="uq_agent_runs_attempt"),
+    )
 
-    __tablename__ = "memories"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=False
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("sessions.id"), nullable=False
     )
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    source_task_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("tasks.id"), nullable=True
-    )
-    source_message_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("messages.id"), nullable=True
-    )
-    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    backend: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    started_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    completed_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 __all__ = [
-    "User",
     "Conversation",
-    "Task",
     "Message",
-    "TaskEvent",
-    "Artifact",
-    "Memory",
+    "MessageEnvelope",
+    "Session",
+    "SessionEnvelope",
+    "Asset",
+    "AgentRun",
 ]

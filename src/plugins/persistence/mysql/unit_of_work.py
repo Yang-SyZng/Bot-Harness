@@ -1,6 +1,6 @@
 """MySQL persistence plugin: Unit of Work.
 
-``MySQLUnitOfWork`` binds all four repositories to a single SQLAlchemy
+``MySQLUnitOfWork`` binds all repositories to a single SQLAlchemy
 ``AsyncSession`` so the Application can run a business transaction and commit /
 rollback atomically — without ever touching ``AsyncSession`` or MySQL directly.
 """
@@ -12,10 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.contracts.repositories import UnitOfWork
 from src.plugins.persistence.mysql.repositories import (
+    MySQLAgentRunRepository,
+    MySQLAssetRepository,
     MySQLConversationRepository,
+    MySQLEnvelopeRepository,
     MySQLMessageRepository,
-    MySQLTaskRepository,
-    MySQLUserRepository,
+    MySQLSessionEnvelopeRepository,
+    MySQLSessionRepository,
 )
 
 __all__ = ["MySQLUnitOfWork"]
@@ -36,10 +39,13 @@ class MySQLUnitOfWork(UnitOfWork):
 
     async def __aenter__(self) -> "MySQLUnitOfWork":
         self._session = self._session_factory()
-        self.users = MySQLUserRepository(self._session)
         self.conversations = MySQLConversationRepository(self._session)
-        self.tasks = MySQLTaskRepository(self._session)
         self.messages = MySQLMessageRepository(self._session)
+        self.envelopes = MySQLEnvelopeRepository(self._session)
+        self.sessions = MySQLSessionRepository(self._session)
+        self.session_envelopes = MySQLSessionEnvelopeRepository(self._session)
+        self.assets = MySQLAssetRepository(self._session)
+        self.agent_runs = MySQLAgentRunRepository(self._session)
         return self
 
     async def __aexit__(self, *args: object) -> None:
@@ -50,10 +56,13 @@ class MySQLUnitOfWork(UnitOfWork):
                 await self._session.close()
                 self._session = None
             # Drop the repository bindings so a stale session is never reused.
-            self.users = None
             self.conversations = None
-            self.tasks = None
             self.messages = None
+            self.envelopes = None
+            self.sessions = None
+            self.session_envelopes = None
+            self.assets = None
+            self.agent_runs = None
 
     async def commit(self) -> None:
         """Commit the pending transaction."""

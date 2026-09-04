@@ -14,22 +14,22 @@ from src.plugins.persistence.mysql import metadata  # noqa: F401
 __all__ = [
     "metadata",
     "models",
-    "User",
     "Conversation",
-    "Task",
     "Message",
-    "TaskEvent",
-    "Artifact",
-    "Memory",
+    "MessageEnvelope",
+    "Session",
+    "SessionEnvelope",
+    "Asset",
+    "AgentRun",
 ]
 
-# Explicit re-exports for ergonomic imports (``from ...persistence import User``).
+# Explicit re-exports for ergonomic imports.
 from src.plugins.platforms.kook.persistence.models import (  # noqa: E402,F401
-    Artifact,
+    AgentRun,
+    Asset,
     Conversation,
-    Memory,
     Message,
-    Task,
-    TaskEvent,
-    User,
+    MessageEnvelope,
+    Session,
+    SessionEnvelope,
 )

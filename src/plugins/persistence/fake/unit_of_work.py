@@ -1,19 +1,21 @@
 """Fake in-memory Unit of Work.
 
-Provides a no-setup ``UnitOfWork`` whose four repositories (conversations /
-messages / sessions / assets) share a single ``MemoryStore``, so Application
-code paths can run and be tested without any external service.
+Provides a no-setup ``UnitOfWork`` whose repositories share a single
+``MemoryStore``, so Application code paths can run and be tested without any
+external service.
 """
 
 from __future__ import annotations
 
 from src.core.contracts.repositories import UnitOfWork
 from src.plugins.persistence.fake.repositories import (
+    FakeAgentRunRepository,
     FakeAssetRepository,
     FakeConversationRepository,
     FakeEnvelopeRepository,
     FakeMessageRepository,
     FakeSessionRepository,
+    FakeSessionEnvelopeRepository,
     MemoryStore,
 )
 
@@ -37,7 +39,9 @@ class FakeUnitOfWork(UnitOfWork):
         self.envelopes = FakeEnvelopeRepository(self.store)
         self.messages = FakeMessageRepository(self.store)
         self.sessions = FakeSessionRepository(self.store)
+        self.session_envelopes = FakeSessionEnvelopeRepository(self.store)
         self.assets = FakeAssetRepository(self.store)
+        self.agent_runs = FakeAgentRunRepository(self.store)
         return self
 
     async def __aexit__(self, *args: object) -> None:
@@ -47,7 +51,9 @@ class FakeUnitOfWork(UnitOfWork):
         self.envelopes = None
         self.messages = None
         self.sessions = None
+        self.session_envelopes = None
         self.assets = None
+        self.agent_runs = None
 
     async def commit(self) -> None:
         """For in-memory storage writes are immediately visible; commit is a

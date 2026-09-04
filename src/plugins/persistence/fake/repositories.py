@@ -10,13 +10,15 @@ Entity ``id`` values are stable UUIDs generated at creation time (via
 
 from __future__ import annotations
 
+from src.core.entities.agent_run import AgentRun
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
+from src.core.entities.session_envelope import SessionEnvelope
 from src.core.entities.transport.address import ConversationAddress
 from src.core.entities.transport.asset import Asset
 from src.core.entities.transport.envelope import MessageEnvelope
-from src.core.values import TaskStatus
+from src.core.values import SessionEnvelopeRole, SessionStatus, now_ms
 
 __all__ = [
     "MemoryStore",
@@ -24,7 +26,9 @@ __all__ = [
     "FakeEnvelopeRepository",
     "FakeMessageRepository",
     "FakeSessionRepository",
+    "FakeSessionEnvelopeRepository",
     "FakeAssetRepository",
+    "FakeAgentRunRepository",
 ]
 
 
@@ -34,9 +38,11 @@ class MemoryStore:
     def __init__(self) -> None:
         self.conversations: dict[str, Conversation] = {}
         self.envelopes: dict[str, MessageEnvelope] = {}
-        self.messages: list[Message] = []
+        self.messages: dict[str, Message] = {}
         self.sessions: dict[str, Session] = {}
+        self.session_envelopes: dict[tuple[str, str], SessionEnvelope] = {}
         self.assets: list[Asset] = []
+        self.agent_runs: dict[str, AgentRun] = {}
 
 
 class FakeConversationRepository:
@@ -47,11 +53,7 @@ class FakeConversationRepository:
 
     @staticmethod
     def _key(address: ConversationAddress) -> str:
-        return ",".join(
-            f"{k}={v}"
-            for k, v in address.__dict__.items()
-            if v is not None
-        )
+        return address.identity_key()
 
     async def add(self, conversation: Conversation) -> None:
         if conversation.address is not None:
@@ -86,10 +88,30 @@ class FakeEnvelopeRepository:
         self._store = store
 
     async def add(self, envelope: MessageEnvelope) -> None:
+        if envelope.conversation_id is None:
+            raise ValueError("envelope conversation_id is required")
+        if envelope.message is not None:
+            self._store.messages[envelope.message.id] = envelope.message
         self._store.envelopes[envelope.id] = envelope
 
     async def get(self, envelope_id: str) -> MessageEnvelope | None:
         return self._store.envelopes.get(envelope_id)
+
+    async def get_by_external_message_id(
+        self,
+        *,
+        conversation_id: str,
+        external_message_id: str,
+    ) -> MessageEnvelope | None:
+        for envelope in self._store.envelopes.values():
+            if envelope.conversation_id != conversation_id:
+                continue
+            if (
+                envelope.transport is not None
+                and envelope.transport.external_message_id == external_message_id
+            ):
+                return envelope
+        return None
 
     async def list_by_conversation(
         self,
@@ -118,32 +140,16 @@ class FakeEnvelopeRepository:
 
 
 class FakeMessageRepository:
-    """``MessageRepository`` stored in memory (messages read out of envelopes)."""
+    """``MessageRepository`` stored in memory, keyed by message id."""
 
     def __init__(self, store: MemoryStore) -> None:
         self._store = store
 
-    async def get(self, message_id: str) -> Message | None:
-        for e in self._store.envelopes.values():
-            for m in e.messages or []:
-                if str(m.id) == message_id:
-                    return m
-        return None
+    async def add(self, message: Message) -> None:
+        self._store.messages[message.id] = message
 
-    async def list_for_envelopes(
-        self,
-        envelope_ids: list[str],
-        *,
-        limit: int | None = None,
-    ) -> list[Message]:
-        out: list[Message] = []
-        for eid in envelope_ids:
-            envelope = self._store.envelopes.get(eid)
-            if envelope is not None and envelope.messages:
-                out.extend(envelope.messages)
-        if limit is not None:
-            out = out[-limit:]
-        return out
+    async def get(self, message_id: str) -> Message | None:
+        return self._store.messages.get(message_id)
 
 
 class FakeSessionRepository:
@@ -166,14 +172,18 @@ class FakeSessionRepository:
         self,
         *,
         conversation_id: str,
-        user_id: str | None = None,
+        owner_user_id: str | None = None,
     ) -> Session | None:
         for s in self._store.sessions.values():
             if s.conversation_id != conversation_id:
                 continue
-            if user_id is not None and s.user_id != user_id:
+            if owner_user_id is not None and s.owner_user_id != owner_user_id:
                 continue
-            if s.status in (TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.WAITING_USER):
+            if s.status in (
+                SessionStatus.QUEUED,
+                SessionStatus.RUNNING,
+                SessionStatus.WAITING_USER,
+            ):
                 return s
         return None
 
@@ -198,3 +208,91 @@ class FakeAssetRepository:
 
     async def list_by_sha256(self, sha256: str) -> list[Asset]:
         return [a for a in self._store.assets if a.sha256 == sha256]
+
+
+class FakeSessionEnvelopeRepository:
+    """Ordered, deduplicated Session-to-Envelope relations in memory."""
+
+    def __init__(self, store: MemoryStore) -> None:
+        self._store = store
+
+    async def attach(
+        self,
+        *,
+        session_id: str,
+        envelope_id: str,
+        relation_role: SessionEnvelopeRole = SessionEnvelopeRole.INPUT,
+    ) -> SessionEnvelope:
+        key = (session_id, envelope_id)
+        existing = self._store.session_envelopes.get(key)
+        if existing is not None:
+            return existing
+
+        session = self._store.sessions.get(session_id)
+        envelope = self._store.envelopes.get(envelope_id)
+        if session is None:
+            raise ValueError(f"unknown session: {session_id}")
+        if envelope is None:
+            raise ValueError(f"unknown envelope: {envelope_id}")
+        if session.conversation_id != envelope.conversation_id:
+            raise ValueError("session and envelope belong to different conversations")
+
+        sequence_no = 1 + max(
+            (
+                link.sequence_no
+                for link in self._store.session_envelopes.values()
+                if link.session_id == session_id
+            ),
+            default=0,
+        )
+        link = SessionEnvelope(
+            session_id=session_id,
+            envelope_id=envelope_id,
+            sequence_no=sequence_no,
+            relation_role=relation_role,
+            created_at=now_ms(),
+        )
+        self._store.session_envelopes[key] = link
+        return link
+
+    async def list_by_session(self, session_id: str) -> list[SessionEnvelope]:
+        links = [
+            link
+            for link in self._store.session_envelopes.values()
+            if link.session_id == session_id
+        ]
+        return sorted(links, key=lambda link: link.sequence_no)
+
+    async def list_session_ids(self, envelope_id: str) -> list[str]:
+        links = [
+            link
+            for link in self._store.session_envelopes.values()
+            if link.envelope_id == envelope_id
+        ]
+        links.sort(key=lambda link: (link.created_at or 0, link.session_id))
+        return [link.session_id for link in links]
+
+
+class FakeAgentRunRepository:
+    """``AgentRunRepository`` stored in memory."""
+
+    def __init__(self, store: MemoryStore) -> None:
+        self._store = store
+
+    async def add(self, run: AgentRun) -> None:
+        if run.session_id is None or run.session_id not in self._store.sessions:
+            raise ValueError(f"unknown session: {run.session_id}")
+        self._store.agent_runs[run.id] = run
+
+    async def get(self, run_id: str) -> AgentRun | None:
+        return self._store.agent_runs.get(run_id)
+
+    async def save(self, run: AgentRun) -> None:
+        self._store.agent_runs[run.id] = run
+
+    async def list_by_session(self, session_id: str) -> list[AgentRun]:
+        runs = [
+            run for run in self._store.agent_runs.values()
+            if run.session_id == session_id
+        ]
+        return sorted(runs, key=lambda run: (run.attempt, run.id))
