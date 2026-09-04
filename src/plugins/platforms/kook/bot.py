@@ -5,8 +5,9 @@ from agents import set_tracing_disabled
 from khl import Bot, Message
 
 from src import AppSettings
-from src.core.entities.transport.envelope import MessageEnvelope
-from src.plugins.platforms.kook.ingress import KookIngress
+from src.application.ingest_envelope import IngestEnvelope
+from src.plugins.persistence.fake import FakeUnitOfWork, MemoryStore
+from src.plugins.platforms.kook.identity import conversation_address
 from src.plugins.platforms.kook.normalizer import KookNormalizer
 
 log = logging.getLogger(__name__)
@@ -15,44 +16,42 @@ log = logging.getLogger(__name__)
 def build_bot(settings: AppSettings | None = None) -> Bot:
     """Build and configure the KOOK bot.
 
-    Args:
-        settings: Optional application settings. If omitted, settings are loaded
-            from the environment.
-
-    Returns:
-        The configured KOOK bot instance.
+    Inbound KOOK messages are normalized into a ``MessageEnvelope``; the
+    conversation is located/created once by its channel address (a Conversation
+    keeps the sole address); the envelope only receives the resolved
+    ``conversation_id`` and is persisted under it.
     """
+
     settings = settings or AppSettings()
     bot = Bot(token=settings.platform_token.get_secret_value())
     normalizer = KookNormalizer(bot)
 
-    async def inbound_handler(envelope: MessageEnvelope) -> None:
-        """Temporary inbound handler: currently logs the normalized envelope.
+    # In-memory persistence (Fake). Swap to a MySQL-backed UnitOfWork once the
+    # mysql persistence plugin is rebuilt; the same use case accepts it.
+    _store = MemoryStore()
 
-        The envelope stops here so the receive path can be exercised up to
-        normalization (message in → normalizer → MessageEnvelope). Real session
-        routing / context building / agent execution plug in here next.
-        """
-        log.info(
-            "inbound envelope idempotency_key=%s conversation_id=%s msgs=%d",
-            envelope.idempotency_key,
-            envelope.conversation_id,
-            len(envelope.messages or []),
-        )
+    def _make_uow() -> FakeUnitOfWork:
+        return FakeUnitOfWork(_store)
 
-    ingress = KookIngress(normalizer=normalizer, handler=inbound_handler)
-
-    set_tracing_disabled(True)
+    ingest = IngestEnvelope(make_uow=_make_uow)
 
     @bot.on_message()
     async def receive(msg: Message) -> None:
-        """Forward an incoming KOOK message to the ingress handler.
+        """Normalize an incoming KOOK message, locate its conversation, ingest."""
+        envelope = await normalizer.normalize(msg)
+        if envelope is None:
+            return
+        guild = getattr(getattr(msg, "ctx", None), "guild", None)
+        server_id = getattr(guild, "id", None)
+        address = conversation_address(
+            server_id=server_id,
+            channel_id=msg.channel.id,
+        )
+        envelope.conversation_id = await ingest.ensure_conversation(address)
+        await ingest.handle(envelope)
+        log.info("ingested envelope id=%s conversation_id=%s", envelope.id, envelope.conversation_id)
 
-        Args:
-            msg: Incoming KOOK message.
-        """
-        await ingress.handle(msg)
-
+    set_tracing_disabled(True)
     return bot
 
 

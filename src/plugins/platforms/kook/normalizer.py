@@ -14,6 +14,7 @@ from src.core.values import (
     AttachmentKind,
     MessageEnvelopeDirectionType,
     MessageEnvelopeTransportFlowType,
+    MessageRole,
     now_ms,
 )
 
@@ -84,14 +85,18 @@ class KookNormalizer:
         text = re.sub(rf"\(met\){re.escape(bot_user.id)}\(met\)", "", text)
         text = re.sub(rf"<@!?{re.escape(bot_user.id)}>", "", text).strip()
 
-        now = now_ms()
+        received_at = now_ms()
+        occurred_at = getattr(msg, "msg_timestamp", None)
+        quote = getattr(msg, "quote", None)
+        external_reply_to_message_id = getattr(quote, "id", None)
+
         return MessageEnvelope(
             conversation_id=None,  # resolved by the inbound use case
-            messages=Message(
+            message=Message(
+                role=MessageRole.USER,
                 content=text or None,
-                attachments=attachments, 
-                reply_to_id=None,
-                sent_at=now),
+                attachments=attachments,
+            ),
             sender=ActorRef(
                 external_id=msg.author.id,
                 actor_type=ActorRefType.PEOPLE,
@@ -102,10 +107,12 @@ class KookNormalizer:
             transport=TransportRef(
                 external_event_id=msg.id,
                 external_message_id=msg.id,
+                external_reply_to_message_id=external_reply_to_message_id,
             ),
             direction=MessageEnvelopeDirectionType.P2B,
             transport_flow=MessageEnvelopeTransportFlowType.INBOUND,
-            received_at=now,
+            occurred_at=occurred_at,
+            received_at=received_at,
             idempotency_key=msg.id,
         )
 

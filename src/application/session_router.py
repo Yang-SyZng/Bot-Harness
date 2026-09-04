@@ -2,9 +2,8 @@
 
 ``SessionRouter`` decides, from the conversation/scoping context and the
 currently active session (if any), whether a new message should be appended to
-an existing session or start a new one. It follows the same pure-decision
-pattern as ``TaskRouter``: it only produces a routing plan; persistence of the
-session is deferred to the persistence layer.
+an existing session or start a new one. It only produces a routing plan;
+persistence of the session is deferred to the persistence layer.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.core.entities import Session
-from src.core.values import TaskStatus, now_ms
+from src.core.values import SessionStatus, now_ms
 
 __all__ = ["SessionRoute", "SessionRouter"]
 
@@ -32,15 +31,21 @@ class SessionRouter:
         self,
         *,
         conversation_id: str,
-        user_id: str,
+        owner_user_id: str,
         active_session: Session | None = None,
     ) -> SessionRoute:
         """Return the routing decision for the given scoping context.
 
-        If an active (in-flight) session exists for the conversation, the
-        message is appended to it; otherwise a new session must be created.
+        If an active (in-flight) session exists for this conversation and
+        owner, the message is appended to it; otherwise a new session must be
+        created. A session from another scope is never accepted.
         """
-        if active_session is not None and active_session.is_active():
+        if (
+            active_session is not None
+            and active_session.conversation_id == conversation_id
+            and active_session.owner_user_id == owner_user_id
+            and active_session.is_active()
+        ):
             return SessionRoute(action="append", session_id=active_session.id)
         return SessionRoute(action="create")
 
@@ -48,18 +53,16 @@ class SessionRouter:
         self,
         *,
         conversation_id: str,
-        user_id: str,
+        owner_user_id: str,
         goal: str | None = None,
     ) -> Session:
         """Create a new in-memory session for the given scoping context."""
         ts = now_ms()
         return Session(
             conversation_id=conversation_id,
-            user_id=user_id,
-            status=TaskStatus.QUEUED,
+            owner_user_id=owner_user_id,
+            status=SessionStatus.QUEUED,
             goal=goal,
-            envelope_ids=[],
-            task_ids=[],
             created_at=ts,
             updated_at=ts,
         )
