@@ -7,9 +7,11 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.entities.agent_run import AgentRun
+from src.core.entities.outbox_event import OutboxEvent
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
@@ -37,6 +39,7 @@ from src.core.values import (
 from src.plugins.persistence.mysql import models
 
 __all__ = [
+    "MySQLOutboxRepository",
     "MySQLConversationRepository",
     "MySQLEnvelopeRepository",
     "MySQLMessageRepository",
@@ -194,11 +197,20 @@ class MySQLConversationRepository:
         self, address: ConversationAddress
     ) -> Conversation:
         key = _address_key(address)
+        # An upsert followed by a locking read serializes inbound routing for
+        # this conversation, including its very first concurrent messages.
+        conversation = Conversation(address=address)
+        statement = insert(models.Conversation).values(
+            id=conversation.id, address_key=key, address_json=_address_json(address)
+        )
+        await self._session.execute(
+            statement.on_duplicate_key_update(address_key=statement.inserted.address_key)
+        )
         row = (
             await self._session.execute(
                 select(models.Conversation).where(
                     models.Conversation.address_key == key
-                )
+                ).with_for_update()
             )
         ).scalar_one_or_none()
         if row is not None:
@@ -220,6 +232,43 @@ class MySQLConversationRepository:
         row.parent_id = conversation.parent_id
         row.created_at = conversation.created_at
         row.last_message_at = conversation.last_message_at
+
+
+class MySQLOutboxRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @staticmethod
+    def _entity(row: models.OutboxEvent) -> OutboxEvent:
+        return OutboxEvent(id=row.id, run_id=row.run_id,
+                           envelope_id=row.envelope_id, event_type=row.event_type,
+                           created_at=row.created_at, published_at=row.published_at)
+
+    async def add(self, event: OutboxEvent) -> None:
+        self._session.add(models.OutboxEvent(**asdict(event)))
+        await self._session.flush()
+
+    async def get_by_envelope(self, envelope_id: str) -> OutboxEvent | None:
+        row = (await self._session.execute(select(models.OutboxEvent).where(
+            models.OutboxEvent.envelope_id == envelope_id
+        ))).scalar_one_or_none()
+        return self._entity(row) if row is not None else None
+
+    async def list_pending(self, limit: int = 100) -> list[OutboxEvent]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        rows = (await self._session.execute(select(models.OutboxEvent).where(
+            models.OutboxEvent.published_at.is_(None)
+        ).order_by(models.OutboxEvent.created_at, models.OutboxEvent.id)
+          .limit(limit))).scalars()
+        return [self._entity(row) for row in rows]
+
+    async def mark_published(self, event_id: str, published_at: int) -> None:
+        row = await self._session.get(models.OutboxEvent, event_id, with_for_update=True)
+        if row is None:
+            raise KeyError(event_id)
+        if row.published_at is None:
+            row.published_at = published_at
 
 
 class MySQLMessageRepository:
@@ -249,6 +298,15 @@ class MySQLMessageRepository:
 class MySQLEnvelopeRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def get_by_idempotency_key(
+        self, conversation_id: str, idempotency_key: str
+    ) -> MessageEnvelope | None:
+        row = (await self._session.execute(select(models.MessageEnvelope).where(
+            models.MessageEnvelope.conversation_id == conversation_id,
+            models.MessageEnvelope.idempotency_key == idempotency_key,
+        ))).scalar_one_or_none()
+        return await self._from_row(row) if row is not None else None
 
     async def add(self, envelope: MessageEnvelope) -> None:
         if envelope.conversation_id is None:

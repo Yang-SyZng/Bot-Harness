@@ -174,7 +174,22 @@ class AgentRun(Base):
     completed_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
+class OutboxEvent(Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (Index("ix_outbox_pending", "published_at", "created_at", "id"),)
+
+    id: Mapped[str] = mapped_column(ID, primary_key=True)
+    run_id: Mapped[str] = mapped_column(ID, ForeignKey("agent_runs.id"), unique=True)
+    envelope_id: Mapped[str] = mapped_column(
+        ID, ForeignKey("message_envelopes.id"), unique=True
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    published_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
 __all__ = [
+    "OutboxEvent",
     "Conversation",
     "Message",
     "MessageEnvelope",

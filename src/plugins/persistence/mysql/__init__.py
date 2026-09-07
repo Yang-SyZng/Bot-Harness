@@ -17,6 +17,7 @@ from src.plugins.persistence.mysql.unit_of_work import MySQLUnitOfWork
 metadata: MetaData = Base.metadata
 
 __all__ = [
+    "OutboxEvent",
     "metadata",
     "models",
     "Conversation",
@@ -31,6 +32,7 @@ __all__ = [
 
 # Explicit re-exports for ergonomic imports.
 from src.plugins.persistence.mysql.models import (  # noqa: E402,F401
+    OutboxEvent,
     AgentRun,
     Asset,
     Conversation,

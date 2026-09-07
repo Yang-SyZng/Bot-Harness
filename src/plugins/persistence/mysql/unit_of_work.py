@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core.contracts.repositories import UnitOfWork
 from src.plugins.persistence.mysql.repositories import (
     MySQLAgentRunRepository,
+    MySQLOutboxRepository,
     MySQLAssetRepository,
     MySQLConversationRepository,
     MySQLEnvelopeRepository,
@@ -46,6 +47,7 @@ class MySQLUnitOfWork(UnitOfWork):
         self.session_envelopes = MySQLSessionEnvelopeRepository(self._session)
         self.assets = MySQLAssetRepository(self._session)
         self.agent_runs = MySQLAgentRunRepository(self._session)
+        self.outbox = MySQLOutboxRepository(self._session)
         return self
 
     async def __aexit__(self, *args: object) -> None:
@@ -63,6 +65,7 @@ class MySQLUnitOfWork(UnitOfWork):
             self.session_envelopes = None
             self.assets = None
             self.agent_runs = None
+            self.outbox = None
 
     async def commit(self) -> None:
         """Commit the pending transaction."""

@@ -10,7 +10,11 @@ Entity ``id`` values are stable UUIDs generated at creation time (via
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import replace
+
 from src.core.entities.agent_run import AgentRun
+from src.core.entities.outbox_event import OutboxEvent
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
@@ -21,6 +25,7 @@ from src.core.entities.transport.envelope import MessageEnvelope
 from src.core.values import SessionEnvelopeRole, SessionStatus, now_ms
 
 __all__ = [
+    "FakeOutboxRepository",
     "MemoryStore",
     "FakeConversationRepository",
     "FakeEnvelopeRepository",
@@ -36,6 +41,7 @@ class MemoryStore:
     """Shared in-memory backing store used by all fake repositories."""
 
     def __init__(self) -> None:
+        self.transaction_lock = asyncio.Lock()
         self.conversations: dict[str, Conversation] = {}
         self.envelopes: dict[str, MessageEnvelope] = {}
         self.messages: dict[str, Message] = {}
@@ -43,6 +49,7 @@ class MemoryStore:
         self.session_envelopes: dict[tuple[str, str], SessionEnvelope] = {}
         self.assets: list[Asset] = []
         self.agent_runs: dict[str, AgentRun] = {}
+        self.outbox: dict[str, OutboxEvent] = {}
 
 
 class FakeConversationRepository:
@@ -97,6 +104,13 @@ class FakeEnvelopeRepository:
     async def get(self, envelope_id: str) -> MessageEnvelope | None:
         return self._store.envelopes.get(envelope_id)
 
+    async def get_by_idempotency_key(
+        self, conversation_id: str, idempotency_key: str
+    ) -> MessageEnvelope | None:
+        return next((e for e in self._store.envelopes.values()
+                     if e.conversation_id == conversation_id
+                     and e.idempotency_key == idempotency_key), None)
+
     async def get_by_external_message_id(
         self,
         *,
@@ -137,6 +151,37 @@ class FakeEnvelopeRepository:
         if limit is not None:
             items = items[-limit:]
         return items
+
+
+class FakeOutboxRepository:
+    def __init__(self, store: MemoryStore) -> None:
+        self._store = store
+
+    async def add(self, event: OutboxEvent) -> None:
+        if event.run_id not in self._store.agent_runs:
+            raise ValueError("outbox run does not exist")
+        if event.envelope_id not in self._store.envelopes:
+            raise ValueError("outbox envelope does not exist")
+        if any(e.run_id == event.run_id or e.envelope_id == event.envelope_id
+               for e in self._store.outbox.values()):
+            raise ValueError("duplicate execution event")
+        self._store.outbox[event.id] = event
+
+    async def get_by_envelope(self, envelope_id: str) -> OutboxEvent | None:
+        return next((e for e in self._store.outbox.values()
+                     if e.envelope_id == envelope_id), None)
+
+    async def list_pending(self, limit: int = 100) -> list[OutboxEvent]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        return sorted((e for e in self._store.outbox.values()
+                       if e.published_at is None),
+                      key=lambda e: (e.created_at, e.id))[:limit]
+
+    async def mark_published(self, event_id: str, published_at: int) -> None:
+        event = self._store.outbox[event_id]
+        if event.published_at is None:
+            self._store.outbox[event_id] = replace(event, published_at=published_at)
 
 
 class FakeMessageRepository:
