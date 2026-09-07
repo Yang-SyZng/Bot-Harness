@@ -12,6 +12,7 @@ from src.core.contracts.agent import (
     AgentExecutionResult,
 )
 from src.core.contracts.repositories import (
+    OutboxRepository,
     AgentRunRepository,
     AssetRepository,
     ConversationRepository,
@@ -22,8 +23,13 @@ from src.core.contracts.repositories import (
     SessionRepository,
     UnitOfWork,
 )
+from src.core.contracts.messaging import DeliveryReceipt, NormalizedIncoming, OutgoingMessage
 
 __all__ = [
+    "OutboxRepository",
+    "DeliveryReceipt",
+    "NormalizedIncoming",
+    "OutgoingMessage",
     "AgentBackend",
     "AgentExecutionContext",
     "AgentExecutionResult",

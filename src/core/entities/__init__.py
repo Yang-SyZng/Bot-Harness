@@ -12,6 +12,7 @@ Split by responsibility:
 from __future__ import annotations
 
 from src.core.entities.agent_run import AgentRun
+from src.core.entities.outbox_event import OutboxEvent
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
@@ -25,6 +26,7 @@ from src.core.entities.transport.envelope import MessageEnvelope
 from src.core.entities.transport.transport import TransportRef
 
 __all__ = [
+    "OutboxEvent",
     "Attachment",
     "AgentRun",
     "Asset",

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from src.core.entities.agent_run import AgentRun
+from src.core.entities.outbox_event import OutboxEvent
 from src.core.entities.conversation import Conversation
 from src.core.entities.message import Message
 from src.core.entities.session import Session
@@ -29,6 +30,7 @@ __all__ = [
     "SessionEnvelopeRepository",
     "AssetRepository",
     "AgentRunRepository",
+    "OutboxRepository",
     "UnitOfWork",
 ]
 
@@ -49,7 +51,7 @@ class ConversationRepository(Repository, Protocol):
         ...  # pragma: no cover - protocol
 
     async def get_or_create_by_address(self, address: ConversationAddress) -> Conversation:
-        """Return the existing conversation for ``address`` or persist a new one."""
+        """Get/create and serialize routing for this address until UoW exit."""
         ...
 
     async def save(self, conversation: Conversation) -> None:
@@ -65,6 +67,11 @@ class EnvelopeRepository(Repository, Protocol):
 
     async def get(self, envelope_id: str) -> MessageEnvelope | None:
         ...  # pragma: no cover - protocol
+
+    async def get_by_idempotency_key(
+        self, conversation_id: str, idempotency_key: str
+    ) -> MessageEnvelope | None:
+        ...
 
     async def get_by_external_message_id(
         self,
@@ -180,6 +187,21 @@ class AssetRepository(Repository, Protocol):
         ...  # pragma: no cover - protocol
 
 
+@runtime_checkable
+class OutboxRepository(Repository, Protocol):
+    async def add(self, event: OutboxEvent) -> None:
+        ...
+
+    async def get_by_envelope(self, envelope_id: str) -> OutboxEvent | None:
+        ...
+
+    async def list_pending(self, limit: int = 100) -> list[OutboxEvent]:
+        ...
+
+    async def mark_published(self, event_id: str, published_at: int) -> None:
+        ...
+
+
 @dataclass
 class UnitOfWork:
     """Bundle the repositories of one transaction boundary.
@@ -197,6 +219,7 @@ class UnitOfWork:
     envelopes: EnvelopeRepository | None = None
     session_envelopes: SessionEnvelopeRepository | None = None
     agent_runs: AgentRunRepository | None = None
+    outbox: OutboxRepository | None = None
 
     async def __aenter__(self) -> "UnitOfWork":
         return self
