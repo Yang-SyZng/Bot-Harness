@@ -2,7 +2,7 @@ import json
 import re
 from typing import List
 
-from khl import Bot, Message, MessageTypes
+from khl import Bot, Message as KookMessage, MessageTypes
 
 from src.core.entities.message import Message
 from src.core.entities.transport.actor import ActorRef
@@ -32,7 +32,7 @@ class KookNormalizer:
         """
         self._bot = bot
 
-    async def normalize(self, msg: Message) -> MessageEnvelope | None:
+    async def normalize(self, msg: KookMessage) -> MessageEnvelope | None:
         """Normalize an incoming KOOK message into a ``MessageEnvelope``.
 
         Messages sent by bots, messages that do not mention the current bot, and
@@ -48,9 +48,11 @@ class KookNormalizer:
         """
         # Skip the robot itself and messages that do not mention the bot.
         bot_user = await self._bot.client.fetch_me()
-        # if getattr(msg.author, "bot", False) or msg.author_id == bot_user.id:
-        #     return None
-        if bot_user.id not in (msg.extra.get("mention") or []):
+        if getattr(msg.author, "bot", False) or msg.author.id == bot_user.id:
+            return None
+        channel_type = getattr(msg, "channel_type", None)
+        is_private = getattr(channel_type, "value", channel_type) == "PERSON"
+        if not is_private and bot_user.id not in (msg.extra.get("mention") or []):
             return None
 
         text = msg.content or ""
@@ -100,8 +102,9 @@ class KookNormalizer:
             sender=ActorRef(
                 external_id=msg.author.id,
                 actor_type=ActorRefType.PEOPLE,
-                display_name=msg.author.nickname,
-                avatar=msg.author.vip_avatar
+                display_name=getattr(msg.author, "nickname", None)
+                or getattr(msg.author, "username", None),
+                avatar=getattr(msg.author, "vip_avatar", None)
             ),
             # recipient=,
             transport=TransportRef(
