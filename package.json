@@ -1,0 +1,29 @@
+{
+  "name": "kookbot-harness",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false",
+    "clean": "tsc -b --clean",
+    "dev": "node --env-file-if-exists=.env --import tsx apps/kook-bot/src/index.ts",
+    "format": "biome format --write apps packages tests vitest.config.ts package.json tsconfig.json tsconfig.base.json tsconfig.test.json biome.json",
+    "format:check": "biome format apps packages tests vitest.config.ts package.json tsconfig.json tsconfig.base.json tsconfig.test.json biome.json",
+    "lint": "biome lint apps packages tests vitest.config.ts",
+    "start": "node --env-file-if-exists=.env apps/kook-bot/dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.test.json --pretty false",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.5",
+    "@types/node": "22.19.19",
+    "tsx": "4.22.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.9"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/domain" },
+    { "path": "packages/application" },
+    { "path": "packages/agent-pi" },
+    { "path": "packages/tools" },
+    { "path": "packages/platform-kook" },
+    { "path": "packages/persistence" },
+    { "path": "packages/storage" },
+    { "path": "apps/kook-bot" }
+  ]
+}

@@ -1,7 +1,10 @@
 .env
-.venv/
-.vscode/
-*.py[cod]
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
 workspaces/
-__pycache__
-tests
+legacy
+docs
+reasonix.toml
