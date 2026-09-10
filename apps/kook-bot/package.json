@@ -1,0 +1,22 @@
+{
+  "name": "@kookbot/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@kookbot/agent-pi": "workspace:*",
+    "@kookbot/application": "workspace:*",
+    "@kookbot/domain": "workspace:*",
+    "@kookbot/persistence": "workspace:*",
+    "@kookbot/platform-kook": "workspace:*",
+    "@kookbot/storage": "workspace:*",
+    "@kookbot/tools": "workspace:*"
+  }
+}
