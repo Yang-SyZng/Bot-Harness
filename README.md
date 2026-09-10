@@ -1,6 +1,6 @@
 # Bot Harness
 
-![version](https://img.shields.io/badge/version-0.0.1__alpha.9-blue)
+![version](https://img.shields.io/badge/version-0.0.8__alpha.1-blue)
 ![GitHub last commit](https://img.shields.io/github/last-commit/Yang-SyZng/Bot-Harness?logo=github)
 ![github stars](https://img.shields.io/github/stars/Yang-SyZng/Bot-Harness?style=social)
 
@@ -12,19 +12,21 @@ Currently, we have compatibility with:
 
 Other platforms are coming soon!!
 
-## Config
+## Running
+
+Requires Node.js `>=22.19.0` and pnpm `11.21.0`.
 
 ```bash
-cp .env.example .env
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-In `.env`, fill in the new `PLATFORM_TOKEN`, `API_KEY`, `BASE_URL`, and `LLM_MODEL_ID`.
-
-## Run
+Copy `.env.example` to `.env`, then start the bot:
 
 ```bash
-.venv/bin/python examples/bot_test.py
+pnpm dev
 ```
 
-Only messages explicitly marked with `@Bot` are processed. Attachment input in the first version only supports single files within a card; readable file formats are `.txt`, `.md`, `.json`, and `.csv`.
-
+The KOOK text-message loop is fully functional. Channel messages must mention `@Bot`, while direct messages can be sent without a mention. The running process calls the configured LLM and sends its response back to the original channel or direct-message conversation. Use a test bot and channel for your initial verification.
