@@ -2,6 +2,7 @@ import type { Logger } from "@kookbot/application";
 
 export * from "./headless-session.js";
 export * from "./messages.js";
+export * from "./prompts/base-system-prompt.js";
 export * from "./runtime-adapter.js";
 
 export const AGENT_PI_PACKAGE = "@kookbot/agent-pi" as const;
