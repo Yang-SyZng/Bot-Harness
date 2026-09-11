@@ -29,4 +29,10 @@ Copy `.env.example` to `.env`, then start the bot:
 pnpm dev
 ```
 
-The KOOK text-message loop is fully functional. Channel messages must mention `@Bot`, while direct messages can be sent without a mention. The running process calls the configured LLM and sends its response back to the original channel or direct-message conversation. Use a test bot and channel for your initial verification.
+The KOOK message loop is fully functional. Channel messages must mention `@Bot`, while direct messages can be sent without a mention. The running process calls the configured LLM and sends its response back to the original channel or direct-message conversation.
+
+Uploaded UTF-8 `.txt`, `.md`, `.json`, and `.csv` files are available to the agent through session-scoped tools. The agent can create files in the same formats; generated files are registered, uploaded, and returned to the originating KOOK conversation. File access is restricted to the current session workspace and subject to the limits configured in `.env`.
+
+Local function tools are registered through a central registry and governed before and after execution. The runtime enforces risk allowlists, per-run call limits, timeouts, result-size limits, and redacted `AgentRunStep` audit records. Only predefined safe progress messages may be sent to KOOK while a tool is running.
+
+Use a test bot and channel for your initial verification.
