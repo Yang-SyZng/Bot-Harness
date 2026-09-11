@@ -7,6 +7,9 @@ import {
 } from "@kookbot/application";
 import {
   AgentRunStatus,
+  Attachment,
+  AttachmentKind,
+  BotPlatform,
   type ConversationAddress,
   Message,
   MessageEnvelope,
@@ -21,6 +24,8 @@ import {
   type OutboxEvent,
 } from "@kookbot/domain";
 import type { UnitOfWorkFactory } from "@kookbot/application";
+import type { AssetStore } from "@kookbot/storage";
+import { buildConversationPrompt } from "../prompts/system-prompt.js";
 
 export const WORKER_COMPONENT = "worker" as const;
 
@@ -41,6 +46,7 @@ export class MemoryOutboxWorker {
     private readonly runtime: AgentRuntime,
     private readonly publisher: MessagePublisher,
     private readonly logger: Logger,
+    private readonly assetStore?: AssetStore,
   ) {}
 
   drain(): Promise<void> {
@@ -94,13 +100,51 @@ export class MemoryOutboxWorker {
 
   async #process(event: OutboxEvent): Promise<void> {
     const work = await this.#load(event);
+    if (work.address.platform !== BotPlatform.KOOK) {
+      throw new Error(`unsupported prompt platform: ${work.address.platform ?? "undefined"}`);
+    }
+    const executionContext = new Message({
+      role: MessageRole.SYSTEM,
+      content: buildConversationPrompt({
+        platform: work.address.platform,
+        surface: work.address.roomId ? "channel" : "direct",
+      }),
+    });
+    if (this.assetStore) {
+      for (const attachment of work.current.attachments) {
+        await this.assetStore.downloadInput({ sessionId: work.sessionId, attachment });
+      }
+    }
     const result = await new ExecuteAgentRun(this.makeUnitOfWork, this.runtime).execute({
       runId: work.runId,
-      history: work.history,
+      history: [executionContext, ...work.history],
       current: work.current,
-      onEvent: (runtimeEvent) => {
+      onEvent: async (runtimeEvent) => {
         if (runtimeEvent.type === "text_delta") return;
-        this.logger.debug("agent.runtime_event", { runId: work.runId, runtimeEvent });
+        this.logger.debug("agent.runtime_event", {
+          runId: work.runId,
+          eventType: runtimeEvent.type,
+          ...("callId" in runtimeEvent ? { toolCallId: runtimeEvent.callId, toolName: runtimeEvent.name } : {}),
+          ...("status" in runtimeEvent ? { status: runtimeEvent.status } : {}),
+        });
+        if (runtimeEvent.type === "tool_start" && runtimeEvent.safeProgressText) {
+          try {
+            await this.publisher.publish({
+              deliveryId: `${work.runId}:tool:${runtimeEvent.callId}`,
+              message: new Message({ role: MessageRole.ASSISTANT, content: runtimeEvent.safeProgressText }),
+              address: work.address,
+              ...(work.inbound.transport?.externalMessageId === undefined
+                ? {}
+                : { externalReplyToMessageId: work.inbound.transport.externalMessageId }),
+            });
+          } catch (error) {
+            this.logger.warn("agent.tool_progress_failed", {
+              runId: work.runId,
+              toolCallId: runtimeEvent.callId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
       },
     });
     if (result.status !== "succeeded") {
@@ -109,10 +153,42 @@ export class MemoryOutboxWorker {
       return;
     }
 
-    const outgoingMessage = new Message({ role: MessageRole.ASSISTANT, content: result.text });
+    const outputAssets = (await this.assetStore?.listOutputAssets(work.runId)) ?? [];
+    const storedAttachments = outputAssets.map(
+      (asset) =>
+        new Attachment({
+          id: asset.id,
+          kind: AttachmentKind.FILE,
+          name: asset.originalName,
+          mimeType: asset.mimeType,
+          size: asset.size,
+          sha256: asset.sha256,
+        }),
+    );
+    const outgoingMessage = new Message({
+      role: MessageRole.ASSISTANT,
+      content: result.text,
+      attachments: storedAttachments,
+    });
+    const deliveryMessage = new Message({
+      role: MessageRole.ASSISTANT,
+      content: result.text,
+      attachments: outputAssets.map(
+        (asset) =>
+          new Attachment({
+            id: asset.id,
+            kind: AttachmentKind.FILE,
+            name: asset.originalName,
+            mimeType: asset.mimeType,
+            localPath: asset.localPath,
+            size: asset.size,
+            sha256: asset.sha256,
+          }),
+      ),
+    });
     const receipt = await this.publisher.publish({
       deliveryId: work.runId,
-      message: outgoingMessage,
+      message: deliveryMessage,
       address: work.address,
       ...(work.inbound.transport?.externalMessageId === undefined
         ? {}

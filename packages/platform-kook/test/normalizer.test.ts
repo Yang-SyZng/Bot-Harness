@@ -92,4 +92,25 @@ describe("KookMessageNormalizer", () => {
     expect(incoming?.envelope.transport?.externalReplyToMessageId).toBe("previous");
     expect(incoming?.envelope.message?.attachments[0]).toMatchObject({ name: "a.txt", size: 12 });
   });
+
+  it("normalizes a direct file event with a single attachment object", () => {
+    const incoming = normalizer.normalize(
+      event({
+        channel_type: "PERSON",
+        type: KookMessageType.FILE,
+        content: "https://example.com/a.txt",
+        extra: {
+          ...event().extra,
+          type: KookMessageType.FILE,
+          mention: [],
+          attachments: { type: "file", url: "https://example.com/a.txt", name: "a.txt", size: 12 },
+        },
+      }),
+      "bot-1",
+    );
+    expect(incoming?.envelope.message).toMatchObject({
+      content: undefined,
+      attachments: [expect.objectContaining({ name: "a.txt", sourceUrl: "https://example.com/a.txt" })],
+    });
+  });
 });

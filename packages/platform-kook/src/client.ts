@@ -111,6 +111,34 @@ export class KookClientAdapter extends EventEmitter implements KookGatewayClient
     return { id: result.msg_id };
   }
 
+  async uploadAsset(filePath: string): Promise<{ readonly url: string }> {
+    return this.#rest.services.asset.create(filePath);
+  }
+
+  async sendFileMessage(targetId: string, assetUrl: string, options?: { quote?: string }): Promise<KookSentMessage> {
+    const result = await this.#rest.services.message.create({
+      type: 4,
+      target_id: targetId,
+      content: assetUrl,
+      ...(options?.quote === undefined ? {} : { quote: options.quote }),
+    });
+    return { id: result.msg_id };
+  }
+
+  async sendDirectFileMessage(
+    targetId: string,
+    assetUrl: string,
+    options?: { quote?: string },
+  ): Promise<KookSentMessage> {
+    const result = await this.#rest.services.directMessage.create({
+      type: 4,
+      target_id: targetId,
+      content: assetUrl,
+      ...(options?.quote === undefined ? {} : { quote: options.quote }),
+    });
+    return { id: result.msg_id };
+  }
+
   async #connect(url: string): Promise<void> {
     this.emit("debug", "WebSocket connecting");
     await new Promise<void>((resolve, reject) => {

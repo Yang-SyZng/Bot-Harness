@@ -50,7 +50,9 @@ export interface KookMessageEvent {
     readonly guild_id?: string;
     readonly mention?: readonly string[];
     readonly author?: KookUser;
-    readonly attachments?: readonly { type: string; url: string; name?: string; size?: number }[];
+    readonly attachments?:
+      | { readonly type: string; readonly url: string; readonly name?: string; readonly size?: number }
+      | readonly { readonly type: string; readonly url: string; readonly name?: string; readonly size?: number }[];
     readonly quote?: { id: string };
     readonly kmarkdown?: { raw_content?: string };
   };
@@ -65,6 +67,26 @@ function attachmentKind(type: string): AttachmentKind {
   if (type === "audio") return AttachmentKind.AUDIO;
   if (type === "video") return AttachmentKind.VIDEO;
   return AttachmentKind.FILE;
+}
+
+function messageAttachmentKind(type: number): AttachmentKind {
+  if (type === KookMessageType.IMAGE) return AttachmentKind.IMAGE;
+  if (type === KookMessageType.AUDIO) return AttachmentKind.AUDIO;
+  if (type === KookMessageType.VIDEO) return AttachmentKind.VIDEO;
+  return AttachmentKind.FILE;
+}
+
+function eventAttachments(value: KookMessageEvent["extra"]["attachments"]): Attachment[] {
+  const items = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  return items.map(
+    (item) =>
+      new Attachment({
+        kind: attachmentKind(item.type),
+        sourceUrl: item.url,
+        name: item.name,
+        ...(item.size === undefined ? {} : { size: item.size }),
+      }),
+  );
 }
 
 function extractCard(content: string): { text: string; attachments: Attachment[] } | undefined {
@@ -136,15 +158,18 @@ export class KookMessageNormalizer {
     if (!direct && !event.extra.mention?.includes(botUserId)) return undefined;
 
     let text = event.content ?? "";
-    let attachments = (event.extra.attachments ?? []).map(
-      (item) =>
-        new Attachment({
-          kind: attachmentKind(item.type),
-          sourceUrl: item.url,
-          name: item.name,
-          ...(item.size === undefined ? {} : { size: item.size }),
-        }),
-    );
+    let attachments = eventAttachments(event.extra.attachments);
+    if (
+      [KookMessageType.IMAGE, KookMessageType.VIDEO, KookMessageType.FILE, KookMessageType.AUDIO].includes(
+        event.type,
+      ) &&
+      /^https?:\/\//u.test(text)
+    ) {
+      if (!attachments.some((attachment) => attachment.sourceUrl === text)) {
+        attachments.push(new Attachment({ kind: messageAttachmentKind(event.type), sourceUrl: text }));
+      }
+      text = "";
+    }
     if (event.type === KookMessageType.KMARKDOWN) text = event.extra.kmarkdown?.raw_content ?? text;
     if (event.type === KookMessageType.CARD) {
       const card = extractCard(text);

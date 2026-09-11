@@ -124,12 +124,21 @@ importers:
 
   packages/tools:
     dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 0.85.1
+        version: 0.85.1(@modelcontextprotocol/sdk@1.30.0(zod@4.1.12))(ws@8.21.3)(zod@4.1.12)
       '@kookbot/application':
         specifier: workspace:*
         version: link:../application
       '@kookbot/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kookbot/storage':
+        specifier: workspace:*
+        version: link:../storage
+      typebox:
+        specifier: 1.3.27
+        version: 1.3.27
 
 packages:
 

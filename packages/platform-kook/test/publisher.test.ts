@@ -1,4 +1,4 @@
-import { BotPlatform, ConversationAddress, Message, entityId } from "@kookbot/domain";
+import { Attachment, BotPlatform, ConversationAddress, Message, entityId } from "@kookbot/domain";
 import { describe, expect, it, vi } from "vitest";
 import { KookPublisher, splitKookText, type KookSentMessage } from "../src/index.js";
 
@@ -41,5 +41,62 @@ describe("KookPublisher", () => {
   it("prefers line boundaries and validates the size", () => {
     expect(splitKookText("first line\nsecond line", 12)).toEqual(["first line", "second line"]);
     expect(() => splitKookText("x", 0)).toThrow("positive");
+  });
+
+  it("uploads and sends output files after the text reply", async () => {
+    const sendTextMessage = vi.fn(async () => sent("text"));
+    const sendDirectTextMessage = vi.fn(async () => sent("direct-text"));
+    const uploadAsset = vi.fn(async () => ({ url: "https://kook.example/answer.txt" }));
+    const sendFileMessage = vi.fn(async () => sent("file"));
+    const sendDirectFileMessage = vi.fn(async () => sent("direct-file"));
+    const publisher = new KookPublisher({
+      sendTextMessage,
+      sendDirectTextMessage,
+      uploadAsset,
+      sendFileMessage,
+      sendDirectFileMessage,
+    });
+
+    const receipt = await publisher.publish({
+      deliveryId: "delivery-1",
+      message: new Message({
+        content: "created",
+        attachments: [new Attachment({ name: "answer.txt", localPath: "/safe/answer.txt" })],
+      }),
+      address: new ConversationAddress({ platform: BotPlatform.KOOK, roomId: "channel-1" }),
+      externalReplyToMessageId: "quoted",
+    });
+
+    expect(uploadAsset).toHaveBeenCalledWith("/safe/answer.txt");
+    expect(sendFileMessage).toHaveBeenCalledWith("channel-1", "https://kook.example/answer.txt", undefined);
+    expect(receipt.externalMessageIds).toEqual(["text", "file"]);
+  });
+
+  it("sends a file-only reply through the direct-message API", async () => {
+    const sendTextMessage = vi.fn(async () => sent("channel-text"));
+    const sendDirectTextMessage = vi.fn(async () => sent("direct-text"));
+    const uploadAsset = vi.fn(async () => ({ url: "https://kook.example/result.csv" }));
+    const sendFileMessage = vi.fn(async () => sent("channel-file"));
+    const sendDirectFileMessage = vi.fn(async () => sent("direct-file"));
+    const publisher = new KookPublisher({
+      sendTextMessage,
+      sendDirectTextMessage,
+      uploadAsset,
+      sendFileMessage,
+      sendDirectFileMessage,
+    });
+
+    const receipt = await publisher.publish({
+      deliveryId: "delivery-direct",
+      message: new Message({ attachments: [new Attachment({ name: "result.csv", localPath: "/safe/result.csv" })] }),
+      address: new ConversationAddress({ platform: BotPlatform.KOOK, externalId: "user-1" }),
+      externalReplyToMessageId: "quoted",
+    });
+
+    expect(sendDirectTextMessage).not.toHaveBeenCalled();
+    expect(sendDirectFileMessage).toHaveBeenCalledWith("user-1", "https://kook.example/result.csv", {
+      quote: "quoted",
+    });
+    expect(receipt.externalMessageIds).toEqual(["direct-file"]);
   });
 });

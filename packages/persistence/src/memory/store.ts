@@ -1,5 +1,6 @@
 import type {
   AgentRun,
+  AgentRunStep,
   Asset,
   Conversation,
   EntityId,
@@ -20,6 +21,7 @@ export interface MemoryState {
   readonly sessions: Map<EntityId, Session>;
   readonly sessionEnvelopes: Map<string, SessionEnvelope>;
   readonly agentRuns: Map<EntityId, AgentRun>;
+  readonly agentRunSteps: Map<EntityId, AgentRunStep>;
   readonly assets: Map<EntityId, Asset>;
   readonly outboxEvents: Map<EntityId, OutboxEvent>;
 }
@@ -33,6 +35,7 @@ function emptyState(): MemoryState {
     sessions: new Map(),
     sessionEnvelopes: new Map(),
     agentRuns: new Map(),
+    agentRunSteps: new Map(),
     assets: new Map(),
     outboxEvents: new Map(),
   };
@@ -47,6 +50,7 @@ export function cloneMemoryState(state: MemoryState): MemoryState {
     sessions: new Map([...state.sessions].map(([id, value]) => [id, value.clone()])),
     sessionEnvelopes: new Map([...state.sessionEnvelopes].map(([id, value]) => [id, value.clone()])),
     agentRuns: new Map([...state.agentRuns].map(([id, value]) => [id, value.clone()])),
+    agentRunSteps: new Map([...state.agentRunSteps].map(([id, value]) => [id, value.clone()])),
     assets: new Map([...state.assets].map(([id, value]) => [id, value.clone()])),
     outboxEvents: new Map([...state.outboxEvents].map(([id, value]) => [id, value.clone()])),
   };

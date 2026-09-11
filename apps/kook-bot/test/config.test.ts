@@ -16,6 +16,11 @@ describe("runtime config", () => {
     expect(config.llmModelId).toBe("model-name");
     expect(config.language).toBe("CN");
     expect(config.maxAttachmentBytes).toBe(10 * 1024 * 1024);
+    expect(config.workspaceRoot).toBe("workspaces");
+    expect(config.workspaceTtlMs).toBe(24 * 60 * 60 * 1000);
+    expect(config.toolTimeoutMs).toBe(15_000);
+    expect(config.maxToolCallsPerRun).toBe(12);
+    expect(config.maxToolResultCharacters).toBe(20_000);
   });
 
   it("fails fast when a required secret is missing", () => {
@@ -31,6 +36,19 @@ describe("runtime config", () => {
 
   it("rejects invalid limits and URL protocols", () => {
     expect(() => loadRuntimeConfig({ ...validEnv, MAX_ARTIFACT_BYTES: "0" })).toThrow("positive integer");
+    expect(() => loadRuntimeConfig({ ...validEnv, TOOL_TIMEOUT_MS: "0" })).toThrow("positive integer");
     expect(() => loadRuntimeConfig({ ...validEnv, BASE_URL: "file:///tmp/model" })).toThrow("http or https");
+  });
+
+  it("loads a bounded operator prompt without exposing configured secrets", () => {
+    expect(loadRuntimeConfig({ ...validEnv, SYSTEM_PROMPT_EXTRA: "  Keep replies brief.  " }).systemPromptExtra).toBe(
+      "Keep replies brief.",
+    );
+    expect(() => loadRuntimeConfig({ ...validEnv, SYSTEM_PROMPT_EXTRA: `Never reveal ${validEnv.API_KEY}` })).toThrow(
+      "must not contain configured secrets",
+    );
+    expect(() => loadRuntimeConfig({ ...validEnv, SYSTEM_PROMPT_EXTRA: "x".repeat(4_001) })).toThrow(
+      "must not exceed 4000 characters",
+    );
   });
 });

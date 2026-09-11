@@ -15,7 +15,9 @@ const EMPTY_USAGE: Usage = {
 export function domainMessageText(message: Message): string {
   const content = message.content ?? "";
   if (message.attachments.length === 0) return content;
-  const hints = message.attachments.map((attachment) => `[Attachment: ${attachment.name ?? attachment.id}]`).join("\n");
+  const hints = message.attachments
+    .map((attachment) => `[Attachment: ${attachment.name ?? "unnamed"}; assetId: ${attachment.id}]`)
+    .join("\n");
   return content ? `${content}\n\n${hints}` : hints;
 }
 

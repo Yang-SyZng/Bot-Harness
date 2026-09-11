@@ -4,6 +4,8 @@ import { digestFile } from "./file-digest.js";
 import type { ActorRef, Attachment, ConversationAddress, EnvelopeTransportFields, TransportRef } from "./transport.js";
 import {
   AgentRunStatus,
+  AgentRunStepStatus,
+  type AssetRole,
   type ConversationType,
   type EntityId,
   type MessageEnvelopeDirection,
@@ -11,6 +13,7 @@ import {
   type SessionEnvelopeRole,
   SessionStatus,
   type TransportFlow,
+  type ToolRisk,
   type UnixMillis,
   newId,
   nowMs,
@@ -252,6 +255,55 @@ export class AgentRun {
   }
 }
 
+export interface AgentRunStepInit {
+  readonly id?: EntityId;
+  readonly runId: EntityId;
+  readonly sessionId: EntityId;
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly risk: ToolRisk;
+  readonly status?: AgentRunStepStatus;
+  readonly argumentsJson?: string | undefined;
+  readonly resultText?: string | undefined;
+  readonly errorMessage?: string | undefined;
+  readonly startedAt?: UnixMillis | undefined;
+  readonly completedAt?: UnixMillis | undefined;
+}
+
+export class AgentRunStep {
+  readonly id: EntityId;
+  readonly runId: EntityId;
+  readonly sessionId: EntityId;
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly risk: ToolRisk;
+  status: AgentRunStepStatus;
+  argumentsJson: string | undefined;
+  resultText: string | undefined;
+  errorMessage: string | undefined;
+  startedAt: UnixMillis | undefined;
+  completedAt: UnixMillis | undefined;
+
+  constructor(init: AgentRunStepInit) {
+    this.id = init.id ?? newId();
+    this.runId = init.runId;
+    this.sessionId = init.sessionId;
+    this.toolCallId = init.toolCallId;
+    this.toolName = init.toolName;
+    this.risk = init.risk;
+    this.status = init.status ?? AgentRunStepStatus.RUNNING;
+    this.argumentsJson = init.argumentsJson;
+    this.resultText = init.resultText;
+    this.errorMessage = init.errorMessage;
+    this.startedAt = init.startedAt;
+    this.completedAt = init.completedAt;
+  }
+
+  clone(): AgentRunStep {
+    return new AgentRunStep(this);
+  }
+}
+
 export interface OutboxEventInit {
   readonly runId: EntityId;
   readonly envelopeId: EntityId;
@@ -296,6 +348,9 @@ export interface AssetInit {
   readonly source?: string | undefined;
   readonly storageKey?: string | undefined;
   readonly localPath?: string | undefined;
+  readonly sessionId?: EntityId | undefined;
+  readonly runId?: EntityId | undefined;
+  readonly role?: AssetRole | undefined;
   readonly safeToShare?: boolean | undefined;
   readonly status?: string | undefined;
   readonly createdAt?: UnixMillis | undefined;
@@ -310,6 +365,9 @@ export class Asset {
   source: string;
   storageKey: string | undefined;
   localPath: string | undefined;
+  sessionId: EntityId | undefined;
+  runId: EntityId | undefined;
+  role: AssetRole | undefined;
   safeToShare: boolean;
   status: string;
   createdAt: UnixMillis | undefined;
@@ -323,6 +381,9 @@ export class Asset {
     this.source = init.source ?? "agent_generated";
     this.storageKey = init.storageKey;
     this.localPath = init.localPath;
+    this.sessionId = init.sessionId;
+    this.runId = init.runId;
+    this.role = init.role;
     this.safeToShare = init.safeToShare ?? false;
     this.status = init.status ?? "ready";
     this.createdAt = init.createdAt;

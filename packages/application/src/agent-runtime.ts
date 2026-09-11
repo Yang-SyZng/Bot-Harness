@@ -1,9 +1,15 @@
-import type { Message } from "@kookbot/domain";
+import type { EntityId, Message } from "@kookbot/domain";
 
 export type AgentRuntimeEvent =
   | { readonly type: "start" }
   | { readonly type: "text_delta"; readonly delta: string }
-  | { readonly type: "tool_start"; readonly callId: string; readonly name: string; readonly arguments: unknown }
+  | {
+      readonly type: "tool_start";
+      readonly callId: string;
+      readonly name: string;
+      readonly arguments: unknown;
+      readonly safeProgressText?: string;
+    }
   | { readonly type: "tool_update"; readonly callId: string; readonly name: string; readonly update: unknown }
   | {
       readonly type: "tool_end";
@@ -18,6 +24,8 @@ export type AgentRuntimeEvent =
 export type AgentRuntimeStatus = "succeeded" | "cancelled" | "failed";
 
 export interface AgentRuntimeInput {
+  readonly runId?: EntityId;
+  readonly sessionId?: EntityId;
   readonly history: readonly Message[];
   readonly current: Message;
   readonly signal?: AbortSignal;

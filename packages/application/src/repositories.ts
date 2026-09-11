@@ -1,6 +1,8 @@
 import type {
   AgentRun,
+  AgentRunStep,
   Asset,
+  AssetRole,
   Conversation,
   ConversationAddress,
   EntityId,
@@ -64,10 +66,20 @@ export interface AgentRunRepository {
   listBySession(sessionId: EntityId): Promise<AgentRun[]>;
 }
 
+export interface AgentRunStepRepository {
+  add(step: AgentRunStep): Promise<void>;
+  get(stepId: EntityId): Promise<AgentRunStep | undefined>;
+  save(step: AgentRunStep): Promise<void>;
+  listByRun(runId: EntityId): Promise<AgentRunStep[]>;
+}
+
 export interface AssetRepository {
   add(asset: Asset): Promise<void>;
   get(assetId: EntityId): Promise<Asset | undefined>;
+  save(asset: Asset): Promise<void>;
   listBySha256(sha256: string): Promise<Asset[]>;
+  listBySession(sessionId: EntityId, role?: AssetRole): Promise<Asset[]>;
+  listByRun(runId: EntityId, role?: AssetRole): Promise<Asset[]>;
 }
 
 export interface OutboxRepository {
@@ -85,6 +97,7 @@ export interface UnitOfWork {
   readonly sessionEnvelopes: SessionEnvelopeRepository;
   readonly assets: AssetRepository;
   readonly agentRuns: AgentRunRepository;
+  readonly agentRunSteps: AgentRunStepRepository;
   readonly outbox: OutboxRepository;
   begin(): Promise<void>;
   commit(): Promise<void>;

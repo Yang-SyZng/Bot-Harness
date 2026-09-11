@@ -11,7 +11,10 @@
   },
   "files": ["dist"],
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "@kookbot/application": "workspace:*",
-    "@kookbot/domain": "workspace:*"
+    "@kookbot/domain": "workspace:*",
+    "@kookbot/storage": "workspace:*",
+    "typebox": "1.3.27"
   }
 }

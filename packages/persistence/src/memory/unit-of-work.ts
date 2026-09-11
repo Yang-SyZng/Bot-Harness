@@ -2,6 +2,7 @@ import type { UnitOfWork } from "@kookbot/application";
 
 import {
   MemoryAgentRunRepository,
+  MemoryAgentRunStepRepository,
   MemoryAssetRepository,
   MemoryConversationRepository,
   MemoryEnvelopeRepository,
@@ -23,6 +24,7 @@ export class FakeUnitOfWork implements UnitOfWork {
   sessionEnvelopes!: MemorySessionEnvelopeRepository;
   assets!: MemoryAssetRepository;
   agentRuns!: MemoryAgentRunRepository;
+  agentRunSteps!: MemoryAgentRunStepRepository;
   outbox!: MemoryOutboxRepository;
 
   constructor(readonly store: MemoryStore) {}
@@ -38,6 +40,7 @@ export class FakeUnitOfWork implements UnitOfWork {
     this.sessionEnvelopes = new MemorySessionEnvelopeRepository(this.#state);
     this.assets = new MemoryAssetRepository(this.#state);
     this.agentRuns = new MemoryAgentRunRepository(this.#state);
+    this.agentRunSteps = new MemoryAgentRunStepRepository(this.#state);
     this.outbox = new MemoryOutboxRepository(this.#state);
   }
 

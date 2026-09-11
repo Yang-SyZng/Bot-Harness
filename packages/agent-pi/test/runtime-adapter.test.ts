@@ -7,9 +7,10 @@ import {
 } from "@earendil-works/pi-ai";
 import { ModelRuntime, defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DISABLED_CODING_TOOLS,
+  BASE_SYSTEM_PROMPT,
   PiAgentRuntimeAdapter,
   convertToLlm,
   createConfiguredPiSessionFactory,
@@ -18,7 +19,7 @@ import {
   resolvePiModelConfig,
   transformContext,
 } from "../src/index.js";
-import { Message, MessageRole } from "@kookbot/domain";
+import { Message, MessageRole, entityId } from "@kookbot/domain";
 
 const sessions: Array<{ dispose(): void }> = [];
 
@@ -76,6 +77,7 @@ describe("headless Pi session", () => {
       systemPrompt: "KookBot system prompt",
     });
     sessions.push(session);
+    expect(session.systemPrompt).toContain(BASE_SYSTEM_PROMPT);
     expect(session.systemPrompt).toContain("KookBot system prompt");
     expect(session.getActiveToolNames()).not.toEqual(expect.arrayContaining([...DISABLED_CODING_TOOLS]));
     await session.prompt("hello");
@@ -112,6 +114,181 @@ describe("headless Pi session", () => {
     expect(activeTools).toEqual(["echo"]);
     expect(runtimeEvents).toEqual(expect.arrayContaining(["tool_start", "tool_end"]));
     expect(result).toMatchObject({ status: "succeeded", text: "done" });
+  });
+
+  it("runs parallel and sequential tool batches according to governance metadata", async () => {
+    for (const [mode, expectedMaxActive] of [
+      ["parallel", 2],
+      ["sequential", 1],
+    ] as const) {
+      const { faux, modelRuntime } = await fauxRuntime([
+        fauxAssistantMessage([fauxToolCall("first", {}), fauxToolCall("second", {})], { stopReason: "toolUse" }),
+        fauxAssistantMessage("done"),
+      ]);
+      let active = 0;
+      let maxActive = 0;
+      const makeTool = (name: string) =>
+        defineTool({
+          name,
+          label: name,
+          description: name,
+          parameters: Type.Object({}),
+          executionMode: mode,
+          execute: async () => {
+            active += 1;
+            maxActive = Math.max(maxActive, active);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            active -= 1;
+            return { content: [{ type: "text" as const, text: name }], details: {} };
+          },
+        });
+      const session = await createHeadlessPiSession({
+        modelRuntime,
+        model: faux.getModel(),
+        customTools: [makeTool("first"), makeTool("second")],
+      });
+      sessions.push(session);
+      await session.prompt("run both");
+      expect(maxActive, mode).toBe(expectedMaxActive);
+    }
+  });
+
+  it("loads inline beforeToolCall policy hooks while filesystem extensions stay disabled", async () => {
+    const { faux, modelRuntime } = await fauxRuntime([
+      fauxAssistantMessage(fauxToolCall("blocked_tool", {}), { stopReason: "toolUse" }),
+      fauxAssistantMessage("handled"),
+    ]);
+    const execute = vi.fn(async () => ({ content: [{ type: "text" as const, text: "unsafe" }], details: {} }));
+    const session = await createHeadlessPiSession({
+      modelRuntime,
+      model: faux.getModel(),
+      customTools: [
+        defineTool({
+          name: "blocked_tool",
+          label: "Blocked tool",
+          description: "Must be blocked",
+          parameters: Type.Object({}),
+          execute,
+        }),
+      ],
+      extensions: [
+        (pi) => {
+          pi.on("tool_call", async () => ({ block: true, reason: "blocked by policy" }));
+        },
+      ],
+    });
+    sessions.push(session);
+    await session.prompt("try it");
+    expect(execute).not.toHaveBeenCalled();
+    expect(session.state.messages).toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: "toolResult", isError: true })]),
+    );
+  });
+
+  it("returns tool failures to the model as standard error results", async () => {
+    const { faux, modelRuntime } = await fauxRuntime([
+      fauxAssistantMessage(fauxToolCall("fails", {}), { stopReason: "toolUse" }),
+      (context) => {
+        expect(context.messages.at(-1)).toMatchObject({ role: "toolResult", toolName: "fails", isError: true });
+        return fauxAssistantMessage("recovered");
+      },
+    ]);
+    const result = await new PiAgentRuntimeAdapter(() =>
+      createHeadlessPiSession({
+        modelRuntime,
+        model: faux.getModel(),
+        customTools: [
+          defineTool({
+            name: "fails",
+            label: "Fails",
+            description: "Always fails",
+            parameters: Type.Object({}),
+            execute: async () => {
+              throw new Error("controlled failure");
+            },
+          }),
+        ],
+      }),
+    ).run({ history: [], current: new Message({ role: MessageRole.USER, content: "run it" }) });
+    expect(result).toMatchObject({ status: "succeeded", text: "recovered" });
+  });
+
+  it("executes tools supplied for the current run and session", async () => {
+    const { faux, modelRuntime } = await fauxRuntime([
+      fauxAssistantMessage(fauxToolCall("read_input_file", { assetId: "input-a" }), { stopReason: "toolUse" }),
+      fauxAssistantMessage("file read"),
+    ]);
+    const adapter = new PiAgentRuntimeAdapter(
+      (_systemContext, customTools) =>
+        createHeadlessPiSession({
+          modelRuntime,
+          model: faux.getModel(),
+          ...(customTools === undefined ? {} : { customTools }),
+        }),
+      (context) => {
+        expect(context).toEqual({ runId: "run-a", sessionId: "session-a" });
+        return [
+          defineTool({
+            name: "read_input_file",
+            label: "Read input file",
+            description: "Read a scoped file",
+            parameters: Type.Object({ assetId: Type.String() }),
+            execute: async (_id, params) => ({
+              content: [{ type: "text", text: `${context.sessionId}:${params.assetId}` }],
+              details: {},
+            }),
+          }),
+        ];
+      },
+    );
+
+    const response = await adapter.run({
+      runId: entityId("run-a"),
+      sessionId: entityId("session-a"),
+      history: [],
+      current: new Message({ role: MessageRole.USER, content: "read the file" }),
+    });
+
+    expect(response).toMatchObject({ status: "succeeded", text: "file read" });
+  });
+
+  it("adds safe progress metadata for run-scoped tools", async () => {
+    const { faux, modelRuntime } = await fauxRuntime([
+      fauxAssistantMessage(fauxToolCall("status", {}), { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ]);
+    const events: Array<{ type: string; safeProgressText?: string }> = [];
+    const adapter = new PiAgentRuntimeAdapter(
+      (_systemContext, customTools, extensions) =>
+        createHeadlessPiSession({
+          modelRuntime,
+          model: faux.getModel(),
+          ...(customTools === undefined ? {} : { customTools }),
+          ...(extensions === undefined ? {} : { extensions }),
+        }),
+      () => ({
+        tools: [
+          defineTool({
+            name: "status",
+            label: "Status",
+            description: "Status",
+            parameters: Type.Object({}),
+            execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }),
+          }),
+        ],
+        progressByToolName: { status: "Checking status..." },
+      }),
+    );
+    await adapter.run({
+      runId: entityId("run-progress"),
+      sessionId: entityId("session-progress"),
+      history: [],
+      current: new Message({ role: MessageRole.USER, content: "status" }),
+      onEvent: (event) => void events.push(event),
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "tool_start", safeProgressText: "Checking status..." }),
+    );
   });
 });
 
@@ -202,9 +379,12 @@ describe("Pi model configuration", () => {
       apiKey: "existing-key",
       baseUrl: "https://provider.example.com/v1",
       thinkingLevel: "low",
+      systemPrompt: "Platform-specific instructions",
     })();
     sessions.push(session);
     expect(session.model).toMatchObject({ provider: "existing-provider", id: "existing-model" });
+    expect(session.systemPrompt).toContain(BASE_SYSTEM_PROMPT);
+    expect(session.systemPrompt).toContain("Platform-specific instructions");
     expect(session.getActiveToolNames()).toEqual([]);
   });
 });

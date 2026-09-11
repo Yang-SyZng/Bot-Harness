@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionEvent, InlineExtension, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AgentRuntime, AgentRuntimeEvent, AgentRuntimeInput, AgentRuntimeResult } from "@kookbot/application";
 import { MessageRole } from "@kookbot/domain";
 
@@ -24,7 +24,10 @@ function lastAssistant(messages: readonly AgentMessage[]): AssistantMessage | un
   return undefined;
 }
 
-function mapEvent(event: AgentSessionEvent): AgentRuntimeEvent | undefined {
+function mapEvent(
+  event: AgentSessionEvent,
+  progressByToolName: Readonly<Record<string, string>>,
+): AgentRuntimeEvent | undefined {
   switch (event.type) {
     case "agent_start":
       return { type: "start" };
@@ -38,6 +41,9 @@ function mapEvent(event: AgentSessionEvent): AgentRuntimeEvent | undefined {
         callId: event.toolCallId,
         name: event.toolName,
         arguments: event.args,
+        ...(progressByToolName[event.toolName] === undefined
+          ? {}
+          : { safeProgressText: progressByToolName[event.toolName] }),
       };
     case "tool_execution_update":
       return {
@@ -60,7 +66,27 @@ function mapEvent(event: AgentSessionEvent): AgentRuntimeEvent | undefined {
 }
 
 export class PiAgentRuntimeAdapter implements AgentRuntime {
-  constructor(private readonly createSession: PiSessionFactory) {}
+  constructor(
+    private readonly createSession: PiSessionFactory,
+    private readonly createTools?: (context: {
+      readonly runId: NonNullable<AgentRuntimeInput["runId"]>;
+      readonly sessionId: NonNullable<AgentRuntimeInput["sessionId"]>;
+    }) =>
+      | ToolDefinition[]
+      | {
+          readonly tools: ToolDefinition[];
+          readonly extensions?: InlineExtension[];
+          readonly progressByToolName?: Readonly<Record<string, string>>;
+        }
+      | Promise<
+          | ToolDefinition[]
+          | {
+              readonly tools: ToolDefinition[];
+              readonly extensions?: InlineExtension[];
+              readonly progressByToolName?: Readonly<Record<string, string>>;
+            }
+        >,
+  ) {}
 
   async run(input: AgentRuntimeInput): Promise<AgentRuntimeResult> {
     if (input.signal?.aborted) {
@@ -72,7 +98,21 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       .filter((message) => message.role === MessageRole.SYSTEM && message.content)
       .map((message) => message.content)
       .join("\n\n");
-    const session = await this.createSession(systemContext || undefined);
+    let customTools: ToolDefinition[] | undefined;
+    let extensions: InlineExtension[] | undefined;
+    let progressByToolName: Readonly<Record<string, string>> = {};
+    if (this.createTools) {
+      if (!input.runId || !input.sessionId) throw new Error("runId and sessionId are required for scoped tools");
+      const toolset = await this.createTools({ runId: input.runId, sessionId: input.sessionId });
+      if (Array.isArray(toolset)) {
+        customTools = toolset;
+      } else {
+        customTools = toolset.tools;
+        extensions = toolset.extensions;
+        progressByToolName = toolset.progressByToolName ?? {};
+      }
+    }
+    const session = await this.createSession(systemContext || undefined, customTools, extensions);
     const model = session.model;
     if (!model) {
       session.dispose();
@@ -84,9 +124,12 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       .filter((message): message is AgentMessage => message !== undefined);
     session.state.messages = await transformContext(history, input.signal);
 
+    let eventDelivery = Promise.resolve();
     const unsubscribe = session.subscribe((event) => {
-      const mapped = mapEvent(event);
-      if (mapped) input.onEvent?.(mapped);
+      const mapped = mapEvent(event, progressByToolName);
+      if (mapped && input.onEvent) {
+        eventDelivery = eventDelivery.then(() => input.onEvent?.(mapped)).then(() => undefined);
+      }
     });
     const abort = (): void => {
       void session.abort();
@@ -95,6 +138,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
 
     try {
       await session.prompt(domainMessageText(input.current), { expandPromptTemplates: false });
+      await eventDelivery;
       const final = lastAssistant(session.state.messages);
       const text = assistantText(final);
       const status =

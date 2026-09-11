@@ -7,12 +7,11 @@ import {
   SettingsManager,
   createAgentSession,
   type AgentSession,
+  type InlineExtension,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
-export const KOOKBOT_SYSTEM_PROMPT = `You are a helpful conversational assistant operating inside a chat bot.
-Answer the user's request directly and clearly. Do not claim to have filesystem or shell access.
-Use only tools explicitly supplied by the host application.`;
+import { BASE_SYSTEM_PROMPT } from "./prompts/base-system-prompt.js";
 
 export const DISABLED_CODING_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"] as const;
 
@@ -24,6 +23,7 @@ export interface HeadlessPiSessionOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly customTools?: ToolDefinition[];
+  readonly extensions?: InlineExtension[];
 }
 
 export async function createHeadlessPiSession(options: HeadlessPiSessionOptions): Promise<AgentSession> {
@@ -39,11 +39,12 @@ export async function createHeadlessPiSession(options: HeadlessPiSessionOptions)
     agentDir,
     settingsManager,
     noExtensions: true,
+    ...(options.extensions === undefined ? {} : { extensionFactories: options.extensions }),
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
     noContextFiles: true,
-    systemPromptOverride: () => options.systemPrompt ?? KOOKBOT_SYSTEM_PROMPT,
+    systemPromptOverride: () => [BASE_SYSTEM_PROMPT, options.systemPrompt].filter(Boolean).join("\n\n"),
   });
   await resourceLoader.reload();
   const { session } = await createAgentSession({
@@ -103,7 +104,11 @@ export function resolvePiModelConfig(env: NodeJS.ProcessEnv = process.env): PiMo
   };
 }
 
-export type PiSessionFactory = (systemContext?: string) => Promise<AgentSession>;
+export type PiSessionFactory = (
+  systemContext?: string,
+  customTools?: ToolDefinition[],
+  extensions?: InlineExtension[],
+) => Promise<AgentSession>;
 
 export function createConfiguredPiSessionFactory(config: PiModelConfig): PiSessionFactory {
   const initialized = (async () => {
@@ -138,13 +143,15 @@ export function createConfiguredPiSessionFactory(config: PiModelConfig): PiSessi
     return { modelRuntime, model };
   })();
 
-  return async (systemContext) => {
+  return async (systemContext, customTools, extensions) => {
     const { modelRuntime, model } = await initialized;
-    const systemPrompt = [config.systemPrompt ?? KOOKBOT_SYSTEM_PROMPT, systemContext].filter(Boolean).join("\n\n");
+    const systemPrompt = [config.systemPrompt, systemContext].filter(Boolean).join("\n\n");
     return createHeadlessPiSession({
       modelRuntime,
       model,
-      systemPrompt,
+      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(customTools === undefined ? {} : { customTools }),
+      ...(extensions === undefined ? {} : { extensions }),
       ...(config.thinkingLevel === undefined ? {} : { thinkingLevel: config.thinkingLevel }),
       ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
       ...(config.agentDir === undefined ? {} : { agentDir: config.agentDir }),

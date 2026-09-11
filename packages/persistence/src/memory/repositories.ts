@@ -3,7 +3,9 @@ import {
   SessionEnvelope,
   SessionEnvelopeRole,
   type AgentRun,
+  type AgentRunStep,
   type Asset,
+  type AssetRole,
   type ConversationAddress,
   type EntityId,
   type Message,
@@ -15,6 +17,7 @@ import {
 } from "@kookbot/domain";
 import type {
   AgentRunRepository,
+  AgentRunStepRepository,
   AssetRepository,
   ConversationRepository,
   EnvelopeRepository,
@@ -249,6 +252,35 @@ export class MemoryAgentRunRepository implements AgentRunRepository {
   }
 }
 
+export class MemoryAgentRunStepRepository implements AgentRunStepRepository {
+  constructor(private readonly state: MemoryState) {}
+  async add(step: AgentRunStep): Promise<void> {
+    if (this.state.agentRunSteps.has(step.id)) throw new Error(`agent run step ${step.id} already exists`);
+    if (!this.state.agentRuns.has(step.runId)) throw new TypeError(`unknown agent run: ${step.runId}`);
+    if (
+      [...this.state.agentRunSteps.values()].some(
+        (item) => item.runId === step.runId && item.toolCallId === step.toolCallId,
+      )
+    ) {
+      throw new Error(`tool call ${step.toolCallId} already exists for run ${step.runId}`);
+    }
+    this.state.agentRunSteps.set(step.id, step.clone());
+  }
+  async get(stepId: EntityId): Promise<AgentRunStep | undefined> {
+    return this.state.agentRunSteps.get(stepId)?.clone();
+  }
+  async save(step: AgentRunStep): Promise<void> {
+    if (!this.state.agentRunSteps.has(step.id)) throw new Error(`agent run step ${step.id} does not exist`);
+    this.state.agentRunSteps.set(step.id, step.clone());
+  }
+  async listByRun(runId: EntityId): Promise<AgentRunStep[]> {
+    return [...this.state.agentRunSteps.values()]
+      .filter((step) => step.runId === runId)
+      .sort((left, right) => (left.startedAt ?? 0) - (right.startedAt ?? 0) || left.id.localeCompare(right.id))
+      .map((step) => step.clone());
+  }
+}
+
 export class MemoryAssetRepository implements AssetRepository {
   constructor(private readonly state: MemoryState) {}
   async add(asset: Asset): Promise<void> {
@@ -258,8 +290,22 @@ export class MemoryAssetRepository implements AssetRepository {
   async get(assetId: EntityId): Promise<Asset | undefined> {
     return this.state.assets.get(assetId)?.clone();
   }
+  async save(asset: Asset): Promise<void> {
+    if (!this.state.assets.has(asset.id)) throw new Error(`asset ${asset.id} does not exist`);
+    this.state.assets.set(asset.id, asset.clone());
+  }
   async listBySha256(sha256: string): Promise<Asset[]> {
     return [...this.state.assets.values()].filter((asset) => asset.sha256 === sha256).map((asset) => asset.clone());
+  }
+  async listBySession(sessionId: EntityId, role?: AssetRole): Promise<Asset[]> {
+    return [...this.state.assets.values()]
+      .filter((asset) => asset.sessionId === sessionId && (role === undefined || asset.role === role))
+      .map((asset) => asset.clone());
+  }
+  async listByRun(runId: EntityId, role?: AssetRole): Promise<Asset[]> {
+    return [...this.state.assets.values()]
+      .filter((asset) => asset.runId === runId && (role === undefined || asset.role === role))
+      .map((asset) => asset.clone());
   }
 }
 

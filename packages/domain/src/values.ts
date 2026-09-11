@@ -78,6 +78,12 @@ export const MessageRole = {
 } as const;
 export type MessageRole = (typeof MessageRole)[keyof typeof MessageRole];
 
+export const AssetRole = {
+  INPUT: "input",
+  OUTPUT: "output",
+} as const;
+export type AssetRole = (typeof AssetRole)[keyof typeof AssetRole];
+
 export const SessionStatus = {
   CREATED: "CREATED",
   QUEUED: "QUEUED",
@@ -100,6 +106,21 @@ export const AgentRunStatus = {
   TIMED_OUT: "TIMED_OUT",
 } as const;
 export type AgentRunStatus = (typeof AgentRunStatus)[keyof typeof AgentRunStatus];
+
+export const ToolRisk = {
+  READ_ONLY: "read_only",
+  WRITE: "write",
+  EXTERNAL_SIDE_EFFECT: "external_side_effect",
+} as const;
+export type ToolRisk = (typeof ToolRisk)[keyof typeof ToolRisk];
+
+export const AgentRunStepStatus = {
+  RUNNING: "RUNNING",
+  SUCCEEDED: "SUCCEEDED",
+  FAILED: "FAILED",
+  BLOCKED: "BLOCKED",
+} as const;
+export type AgentRunStepStatus = (typeof AgentRunStepStatus)[keyof typeof AgentRunStepStatus];
 
 export const SessionEnvelopeRole = {
   INPUT: "input",

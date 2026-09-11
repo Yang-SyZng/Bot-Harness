@@ -57,6 +57,8 @@ export class ExecuteAgentRun {
     let result: AgentRuntimeResult;
     try {
       result = await this.#runtime.run({
+        runId: input.runId,
+        sessionId,
         history: input.history,
         current: input.current,
         ...(input.signal === undefined ? {} : { signal: input.signal }),
